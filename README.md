@@ -49,18 +49,18 @@ copilot.CopilotSession  ◀──JSON-RPC──────┘
 
 关键概念：
 
-| 概念 | 作用 | 在 cowork_worker 中对应 |
-|---|---|---|
-| `CopilotClient` | 启动/管理 CLI 子进程；多 session 复用 | `FoundryChatClient`（一次性构建） |
-| `CopilotSession` | 一次会话，含历史、工具、权限 | `Agent` + `AgentThread` |
-| `define_tool` / Pydantic | 注册自定义工具（自动 JSON Schema） | `make_tools()` 里的 hosted/foundry tools |
-| `on_permission_request` | 每次工具调用前裁决（approve/reject） | 目前无显式权限层，依赖 Foundry tool allow-list |
-| `system_message` (append/replace) | 注入系统提示 | `SYSTEM_PROMPT` (context.py) |
-| `hooks` (pre/post tool, session.start…) | 生命周期钩子 | `WorkspaceMiddleware` + `SkillsContextProvider.before_run` |
-| `infinite_sessions` | 自动 context 压缩 + workspace 目录 | 目前手工管理 workspace 目录 |
-| `provider`（BYOK） | OpenAI / Azure OpenAI / Anthropic | 走 Foundry，目前不使用 BYOK |
-| streaming events | `assistant.message.delta` | Foundry SSE → 上游 |
-| skills / custom_agents / mcp_servers | 一等公民配置 | 自研 `skills.py` + ContextProvider |
+| 概念 | 作用 |
+|---|---|
+| `CopilotClient` | 启动/管理 CLI 子进程；多 session 复用 |
+| `CopilotSession` | 一次会话，含历史、工具、权限 |
+| `define_tool` / Pydantic | 注册自定义工具（自动 JSON Schema） |
+| `on_permission_request` | 每次工具调用前裁决（approve/reject） |
+| `system_message` (append/replace) | 注入系统提示 |
+| `hooks` (pre/post tool, session.start…) | 生命周期钩子 |
+| `infinite_sessions` | 自动 context 压缩 + workspace 目录 |
+| `provider`（BYOK） | OpenAI / Azure OpenAI / Anthropic |
+| streaming events | `assistant.message.delta` 流式输出 |
+| skills / custom_agents / mcp_servers | 一等公民配置 |
 
 ---
 
@@ -73,7 +73,7 @@ copilot.CopilotSession  ◀──JSON-RPC──────┘
 | 03 | `03_custom_tools.ipynb` | `@define_tool` + Pydantic、低阶 `Tool` API、`skip_permission` |
 | 04 | `04_permissions_and_hooks.ipynb` | `on_permission_request`、`hooks`、`on_user_input_request` |
 | 05 | `05_byok_and_providers.ipynb` | Azure OpenAI / OpenAI / Ollama BYOK，模型切换 |
-| 06 | `06_cowork_worker_design.ipynb` | 把 cowork_worker 各模块映射到 SDK 概念，给出最小可运行原型与迁移计划 |
+| 06 | `06_cowork_worker_design.ipynb` | 多 workspace / 多 worker 架构设计：会话隔离、路由、生命周期 |
 | 07 | `07_builtin_tools.ipynb` | 内建工具发现 (`tools.list`)、`view` / `glob` / `rg` / `bash` / `apply_patch`、白名单/黑名单 |
 
 每个 notebook 自包含：`pip install` → import → 跑一个最小例子 → 关键点列表。
@@ -102,32 +102,12 @@ copilot.CopilotSession  ◀──JSON-RPC──────┘
 
 ---
 
-## 4. cowork_worker 迁移要点（详见 notebook 06）
-
-- `FoundryChatClient(...)` → `CopilotClient()` + `provider={"type":"azure", ...}`
-- `Agent(... tools=...)` → `client.create_session(tools=[...], system_message=...)`
-- `AgentMiddleware`(`WorkspaceMiddleware`) → `hooks.on_user_prompt_submitted` +
-  `hooks.on_session_start` 解析 `[workspace_id=...]` tag 并 chdir
-- `SkillsContextProvider.before_run` 注入 `<available_skills>` → `hooks.on_user_prompt_submitted`
-  的 `additionalContext` / 修改后的 prompt
-- 自定义 tools（`make_tools()`）→ 直接 `@define_tool`；Foundry hosted tools
-  （`HostedCodeInterpreterTool`, web search 等）由 SDK 内置工具替代或在
-  `excluded_tools` 中关掉
-- `ResponsesHostServer` 暴露的 Responses API → 用 FastAPI 包一层
-  `session.send` + 事件 → SSE 输出
-- 模型按请求切换（`PER_TURN_MODEL` contextvar）→ 每次 `create_session(model=...)`
-  或为每个 workspace 持有独立 session
-
-详细对照表 & 风险点见 `06_cowork_worker_design.ipynb`。
-
----
-
-## 5. SDK 实战发现（Lessons Learned）
+## 4. SDK 实战发现（Lessons Learned）
 
 > 这些是 notebook 调试过程中踩到的「文档与实际不一致」或「不显眼但很关键」的细节。
 > SDK 版本：`github-copilot-sdk==0.3.0`（Public Preview，API 可能仍在变动）。
 
-### 5.1 `session.send(...)` 返回的是 message ID，**不是**回复文本
+### 4.1 `session.send(...)` 返回的是 message ID，**不是**回复文本
 
 ```python
 # ❌ 直觉式（错误）：以为能拿回模型文本
@@ -144,7 +124,7 @@ if response and hasattr(response.data, 'content'):
 - `session.send` 只是把消息投递给 CLI（异步、解耦），返回的是消息流水 ID
 - 真正的回复永远走事件流：`AssistantMessageData`（完整）/ `AssistantMessageDeltaData`（流式）
 
-### 5.2 工具返回事件中 `text_result_for_llm` 已重命名为 `content`
+### 4.2 工具返回事件中 `text_result_for_llm` 已重命名为 `content`
 
 - **入参侧**（自己写工具时）：`ToolResult(text_result_for_llm=...)` 仍是这个字段名
 - **出参侧**（订阅 `ToolExecutionCompleteData` 事件时）：序列化后字段叫 `.content`
@@ -155,7 +135,7 @@ case ToolExecutionCompleteData() as d:
     # 不要用 d.result.text_result_for_llm —— AttributeError
 ```
 
-### 5.3 `on_permission_request` handler 签名是**两个**参数
+### 4.3 `on_permission_request` handler 签名是**两个**参数
 
 ```python
 from copilot.session import PermissionRequestResult
@@ -208,7 +188,7 @@ def cached_bypass(request, invocation):
 
 跑通示例：见 [`07_builtin_tools.ipynb`](07_builtin_tools.ipynb) §4.5。
 
-### 5.4 CLI 实际内建的 15 个工具（与文档常见示例不同）
+### 4.4 CLI 实际内建的 15 个工具（与文档常见示例不同）
 
 通过 `client._rpc.tools.list(ToolsListRequest(model=...))` 实际拉到的清单：
 
@@ -226,7 +206,7 @@ def cached_bypass(request, invocation):
 
 📖 **每个工具的完整描述 + JSON Schema** 见 [`docs/builtin-tools.md`](docs/builtin-tools.md)。
 
-### 5.5 `apply_patch` 补丁格式（freeform 文本协议）
+### 4.5 `apply_patch` 补丁格式（freeform 文本协议）
 
 ```text
 *** Begin Patch
@@ -239,7 +219,7 @@ def cached_bypass(request, invocation):
 也支持 `*** Update File:` / `*** Delete File:` 操作头。LLM 会自主生成完整 patch；
 我们只需在 `on_permission_request` 中按 `PermissionRequestKind.WRITE` 放行即可。
 
-### 5.6 MCP 接入：**用原生 `mcp_servers={...}`**，不要手写 JSON-RPC 桥
+### 4.6 MCP 接入：**用原生 `mcp_servers={...}`**，不要手写 JSON-RPC 桥
 
 ```python
 async with await client.create_session(
@@ -266,13 +246,13 @@ async with await client.create_session(
 CLI 会自动拉起 stdio 进程 / 连接 HTTP 端点，完成 `tools/list` 发现与 `tools/call`
 路由。**完全不用**自己写 `MockMCPService` + JSON-RPC 转发。
 
-### 5.7 内建工具的白名单/黑名单不影响**自定义**工具
+### 4.7 内建工具的白名单/黑名单不影响**自定义**工具
 
 `available_tools=[...]` / `excluded_tools=[...]` 仅作用于 CLI 内建工具集合。
 通过 `tools=[...]` 注册的自定义工具始终对 LLM 可见，不受这两个参数过滤。
 要禁用某个自定义工具，只需从 `tools=[...]` 中移除即可。
 
-### 5.8 覆写内建工具必须显式 opt-in
+### 4.8 覆写内建工具必须显式 opt-in
 
 ```python
 @define_tool(
@@ -284,7 +264,7 @@ async def custom_view(params): ...
 
 若忘写 `overrides_built_in_tool=True`，SDK 会因命名冲突直接抛错而非"静默替换"，这是有意的安全设计。
 
-### 5.9 `skip_permission=True` 真的会绕过 `on_permission_request`
+### 4.9 `skip_permission=True` 真的会绕过 `on_permission_request`
 
 可用「故意 deny_all 的 handler + 工具仍执行成功」来验证这个开关：
 
@@ -300,13 +280,13 @@ async def deny_all(req, inv):
 
 适合只读 / 安全工具，提升交互体验；危险工具切勿设置。
 
-### 5.10 Declaration-only 工具（`handler=None`）
+### 4.10 Declaration-only 工具（`handler=None`）
 
 适合慢工具 / 跨进程 / 人在回路场景。订阅 `ExternalToolRequestedData` 事件
 → 异步执行 → 用 `session.rpc.tools.handle_pending_tool_call(...)` 回填结果。
 完整可运行示例见 `03_custom_tools.ipynb` 第 6 节。
 
-### 5.11 `client.list_models()` 在某些模型缺 `billing.multiplier` 时整批崩
+### 4.11 `client.list_models()` 在某些模型缺 `billing.multiplier` 时整批崩
 
 SDK 0.3.0 `ModelBilling.from_dict()` 要求 `multiplier` 字段必填，但 GitHub Copilot
 返回的 `models.list` 里某些新模型（如 `gpt-5.5`、`claude-opus-4.7-1m-internal`）
@@ -321,14 +301,14 @@ async with CopilotClient() as client:
 ```
 跑通示例：见 `05_byok_and_providers.ipynb` §6。
 
-### 5.12 BYOK Azure：`azure.api_version` 可省（但仍建议显式）
+### 4.12 BYOK Azure：`azure.api_version` 可省（但仍建议显式）
 
 文档强调必须设 `azure={'api_version': '...'}`，但 SDK 0.3.0 实测：**漏写也能跑通**
 （内部用默认 api_version）。仍建议显式声明，避免 SDK 默认值变化导致行为漂移。
 
 跑通示例：见 `05_byok_and_providers.ipynb` §6.1 故意配错对照。
 
-### 5.13 `CopilotSession` 公共 API 远不止 `send` 一个
+### 4.13 `CopilotSession` 公共 API 远不止 `send` 一个
 
 `dir(CopilotSession)` 列出的 13 个公共方法/属性里，至少这 5 个被早期 notebook 漏掉：
 
@@ -342,7 +322,7 @@ async with CopilotClient() as client:
 
 跑通示例：见 `05_byok_and_providers.ipynb` §5.0 单 session set_model + get_messages。
 
-### 5.14 `create_session` 完整参数清单（30 个！）
+### 4.14 `create_session` 完整参数清单（30 个！）
 
 我之前只覆盖了 7–8 个。**实际上 SDK 0.3.0 的 `CopilotClient.create_session` 暴露 30 个参数**：
 
@@ -372,7 +352,7 @@ import inspect; from copilot import CopilotClient
 print(inspect.signature(CopilotClient.create_session))
 ```
 
-### 5.15 Session **完全持久化到磁盘**，`resume_session` 可跨进程续聊
+### 4.15 Session **完全持久化到磁盘**，`resume_session` 可跨进程续聊
 
 默认情况下（`infinite_sessions.enabled=True`，开箱即开）每个 session 全量落盘到 `~/.copilot/`：
 
@@ -439,7 +419,7 @@ jq -r .type ~/.copilot/session-state/<uuid>/events.jsonl | sort | uniq -c
 
 ---
 
-## 6. 调试小抄
+## 5. 调试小抄
 
 | 现象 | 可能原因 | 处理 |
 |---|---|---|
