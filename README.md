@@ -73,7 +73,6 @@ copilot.CopilotSession  ◀──JSON-RPC──────┘
 | 03 | `03_custom_tools.ipynb` | `@define_tool` + Pydantic、低阶 `Tool` API、`skip_permission` |
 | 04 | `04_permissions_and_hooks.ipynb` | `on_permission_request`、`hooks`、`on_user_input_request` |
 | 05 | `05_byok_and_providers.ipynb` | Azure OpenAI / OpenAI / Ollama BYOK，模型切换 |
-| 06 | `06_cowork_worker_design.ipynb` | 多 workspace / 多 worker 架构设计：会话隔离、路由、生命周期 |
 | 07 | `07_builtin_tools.ipynb` | 内建工具发现 (`tools.list`)、`view` / `glob` / `rg` / `bash` / `apply_patch`、白名单/黑名单 |
 
 每个 notebook 自包含：`pip install` → import → 跑一个最小例子 → 关键点列表。
@@ -310,21 +309,22 @@ async with CopilotClient() as client:
 
 ### 4.13 `CopilotSession` 公共 API 远不止 `send` 一个
 
-`dir(CopilotSession)` 列出的 13 个公共方法/属性里，至少这 5 个被早期 notebook 漏掉：
+`dir(CopilotSession)` 里这几个常被忽略但很有用：
 
-| 方法/属性 | 用途 | 我之前的错 |
-|---|---|---|
-| `session.set_model(model, reasoning_effort=...)` | 中途换 model，history 保留 | notebook 05 §5 旧版说"只能 destroy+recreate"，**错** |
-| `session.get_messages()` | 读 session history（list of dict） | 没提 |
-| `session.abort()` | 优雅取消当前回合 | 没提 |
-| `session.workspace_path` / `session.log()` / `session.ui` / `session.capabilities` | working dir、推日志、UI elicitation、能力位 | 没提 |
-| `client.resume_session(session_id, ...)` | 复用 `session_id` 续聊 | 没提 |
+| 方法/属性 | 用途 |
+|---|---|
+| `session.set_model(model, reasoning_effort=...)` | 中途换 model，history 保留（无须 destroy+recreate）|
+| `session.get_messages()` | 读 session history（list of dict）|
+| `session.abort()` | 优雅取消当前回合 |
+| `session.workspace_path` | 当前 session 的 working directory |
+| `session.log()` / `session.ui` / `session.capabilities` | 推日志、UI elicitation、能力位 |
+| `client.resume_session(session_id, ...)` | 复用 `session_id` 续聊 |
 
-跑通示例：见 `05_byok_and_providers.ipynb` §5.0 单 session set_model + get_messages。
+跳通示例：见 `05_byok_and_providers.ipynb` §5.0（单 session `set_model` + `get_messages`）。
 
-### 4.14 `create_session` 完整参数清单（30 个！）
+### 4.14 `create_session` 完整参数清单（30 个）
 
-我之前只覆盖了 7–8 个。**实际上 SDK 0.3.0 的 `CopilotClient.create_session` 暴露 30 个参数**：
+SDK 0.3.0 的 `CopilotClient.create_session` 实际暴露达 **30 个参数**：
 
 ```
 on_permission_request  model  session_id  client_name  reasoning_effort
