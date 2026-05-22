@@ -417,24 +417,3 @@ jq -r .type ~/.copilot/session-state/<uuid>/events.jsonl | sort | uniq -c
 
 跨进程 resume 跑通示例（事实验证）：见 `05_byok_and_providers.ipynb` §5.5。完整说明（disk layout / SQLite schema / fork / 跨机器迁移 / 清理）见 [`docs/session-persistence.md`](docs/session-persistence.md)。
 
----
-
-## 5. 调试小抄
-
-| 现象 | 可能原因 | 处理 |
-|---|---|---|
-| `print(await session.send(...))` 打印一个 UUID | `send` 返回的是 message ID | 改用 `session.send_and_wait` 或订阅事件 |
-| `AttributeError: ToolExecutionCompleteResult has no attribute text_result_for_llm` | 事件序列化字段叫 `.content` | 用 `getattr(d.result, 'content', None)` |
-| 工具调用悄无声息地"被拒" | permission handler 签名错或抛异常 | handler 必须是 `(request, invocation)`，返回 `PermissionRequestResult(kind=...)` |
-| `excluded_tools=['write_file']` 不报错也"没效果" | 内建工具里压根没有 `write_file` | 改写为 `excluded_tools=['apply_patch', 'bash']` |
-| 模型说"我没有 read_file" | 同上 | 提示词改成 "Use the `view` tool to read ..." |
-| `client.list_models()` 抛 `Missing required field 'multiplier'` | SDK 0.3.0 解析 bug：新 model 的 billing 缺 multiplier | 走底层 RPC `client._rpc._client.request('models.list', {})` |
-| BYOK Azure provider 报 `Resource not found` (404) | `type='openai'` 配 Azure URL，或 `base_url` 带了 `/openai/v1` | `type='azure'` + 只到 host |
-| 想在同一 session 内换 model，以为只能 destroy+recreate | 老版文档 / 误导 | 用 `await session.set_model('new-model')`，history 保留 |
-| 不知道 session 里有什么 history | 没用过 `get_messages` | `msgs = await session.get_messages()` |
-| 想要 "Always allow" 但 `PermissionRequestResult` Literal 里没 `approve-for-session` | Python wrapper 没暴露这个枚举 | 自维护 `set()` 缓存命中即 `approve-once`（见 §5.3 Bypass）|
-| 模型自报「我有 `git`/`curl`/`gh`/`multi_tool_use.parallel`」 | 那些不是 SDK 工具，是环境里的 shell 命令 + 平台元工具 | 真相来自 `tools.list` RPC + `ToolExecutionStartData` 事件 |
-| 进程重启后想继续之前的对话 | session 数据落在 `~/.copilot/session-state/<uuid>/`，未主动 resume | 记下 `session.session_id`，下次 `client.resume_session(id, on_permission_request=..., provider=...)` |
-| `resume_session` 报 "session not found" | 当初创建时关了 `infinite_sessions` 或换了 `config_dir` | 检查 `infinite_sessions={'enabled': True}` 且 `config_dir` 一致；用 `sqlite3 ~/.copilot/session-store.db 'SELECT id FROM sessions;'` 确认 |
-| `sqlite3 'SELECT … FROM sessions WHERE id=?'` 刚创建后返回 `None` | `session-store.db` 是延迟同步的索引，事件先写 `events.jsonl` | 查存在性看 `~/.copilot/session-state/<sid>/` 目录是否存在；不要依赖 sqlite 做实时检查 |
-| `await session.get_messages()` 拼出来的是 `SessionEvent`，`m['role']` 报 `AttributeError` | 返回的是 `list[SessionEvent]`不是 dict | 用 `ev.type` / `ev.data.content`；filter `ev.type` 在 `USER_MESSAGE` / `ASSISTANT_MESSAGE` 才是你要的“会话历史” |
