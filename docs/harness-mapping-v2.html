@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GHCP SDK ↔ Harness Engineering 映射 · 工程视角</title>
+<style>
+  :root {
+    --bg: #f5f1ea;
+    --paper: #ffffff;
+    --ink: #1a1a1a;
+    --ink-soft: #4a4a4a;
+    --ink-mute: #8a8a8a;
+    --line: #e2dccf;
+    --accent: #d96941;     /* 橙红 */
+    --accent-2: #2d5f5d;   /* 深松绿 */
+    --accent-3: #4a7cc9;   /* 蓝 */
+    --good: #4a7c59;
+    --bad: #b04a3f;
+    --warn: #d4a574;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: "Noto Serif SC", "Source Han Serif SC", Georgia, "Times New Roman",
+      -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .sans { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif; }
+  code { font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+         background: rgba(217,105,65,0.08); color: #8a3a1f;
+         padding: 1px 6px; border-radius: 3px; border: 1px solid rgba(217,105,65,0.15);
+         font-size: 0.88em; }
+
+  /* Top Nav */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 36px;
+    background: rgba(245, 241, 234, 0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    font-size: 13px;
+  }
+  .topbar .brand { font-weight: 800; letter-spacing: 0.18em; font-size: 13px;
+                   display: flex; align-items: center; gap: 14px; }
+  .topbar .brand .sep { color: var(--ink-mute); font-weight: 400; }
+  .topbar .brand .sub { color: var(--ink-soft); font-weight: 400; letter-spacing: 0.05em; }
+  .topbar .badges { display: flex; gap: 8px; }
+  .topbar .badge { padding: 6px 14px; border-radius: 4px;
+                   font-weight: 600; font-size: 12px; letter-spacing: 0.08em; }
+  .topbar .badge.year { background: var(--accent); color: #fff; }
+  .topbar .badge.count { background: var(--accent-3); color: #fff; }
+
+  /* Right side dot nav */
+  .dotnav { position: fixed; right: 24px; top: 50%; transform: translateY(-50%);
+            z-index: 40; display: flex; flex-direction: column; gap: 10px; }
+  .dotnav a { width: 10px; height: 10px; border-radius: 50%;
+              border: 1.5px solid var(--ink-mute); background: transparent;
+              transition: all .2s; position: relative; display: block; }
+  .dotnav a:hover { border-color: var(--ink); transform: scale(1.2); }
+  .dotnav a.active { background: var(--ink); border-color: var(--ink); }
+  .dotnav a::after { content: attr(data-label); position: absolute;
+                     right: 22px; top: 50%; transform: translateY(-50%);
+                     background: var(--ink); color: var(--bg); padding: 4px 10px;
+                     border-radius: 3px; font-family: -apple-system, "PingFang SC", sans-serif;
+                     font-size: 11px; white-space: nowrap; opacity: 0;
+                     pointer-events: none; transition: opacity .2s; }
+  .dotnav a:hover::after { opacity: 1; }
+
+  /* Slides */
+  .slide { min-height: 100vh; display: flex; align-items: center; justify-content: center;
+           padding: 80px 60px 60px; position: relative; border-bottom: 1px solid var(--line); }
+  .slide-inner { max-width: 1180px; width: 100%; margin: 0 auto; }
+  .slide.alt { background: var(--paper); }
+  .slide-num { position: absolute; top: 86px; right: 60px;
+               font-family: -apple-system, sans-serif; font-size: 12px;
+               color: var(--ink-mute); letter-spacing: 0.08em; }
+  .slide-num strong { color: var(--ink); font-weight: 700; }
+
+  .eyebrow { display: inline-block; font-family: -apple-system, sans-serif;
+             font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+             color: var(--accent); font-weight: 700; padding-bottom: 6px;
+             border-bottom: 2px solid var(--accent); margin-bottom: 24px; }
+
+  h1 { font-size: 56px; line-height: 1.15; margin: 0 0 24px;
+       font-weight: 800; letter-spacing: -0.02em; color: var(--ink); }
+  h1 em { font-style: italic; color: var(--accent); font-weight: 700;
+          font-family: Georgia, "Times New Roman", serif; }
+  .subtitle { font-size: 21px; color: var(--ink-soft); margin: 0 0 36px;
+              font-family: -apple-system, "PingFang SC", sans-serif; line-height: 1.6; max-width: 920px; }
+
+  .chips { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0 0; }
+  .chip { display: inline-block; padding: 6px 14px; border-radius: 3px;
+          font-family: -apple-system, sans-serif; font-size: 12.5px;
+          letter-spacing: 0.05em; font-weight: 600; border: 1px solid var(--line);
+          background: var(--paper); }
+  .chip.c1 { color: var(--accent); border-color: var(--accent); background: rgba(217,105,65,0.08); }
+  .chip.c2 { color: var(--accent-3); border-color: var(--accent-3); background: rgba(74,124,201,0.08); }
+  .chip.c3 { color: var(--accent-2); border-color: var(--accent-2); background: rgba(45,95,93,0.08); }
+
+  .sec-head { margin-bottom: 36px; }
+  .sec-head h2 { font-size: 36px; margin: 0 0 14px; font-weight: 800;
+                 letter-spacing: -0.015em; line-height: 1.25; color: var(--ink); }
+  .sec-head h2 em { font-style: italic; color: var(--accent); font-family: Georgia, serif; font-weight: 700; }
+  .sec-head .lead { color: var(--ink-soft); font-size: 17px; max-width: 900px;
+                    font-family: -apple-system, "PingFang SC", sans-serif; }
+
+  /* mapping grid: harness ← arrow → SDK */
+  .map-row { display: grid; grid-template-columns: 1fr 64px 1.05fr; gap: 18px;
+             align-items: stretch; margin-bottom: 16px; }
+  .map-card { background: var(--paper); border: 1px solid var(--line);
+              border-radius: 4px; padding: 18px 20px; }
+  .map-card.h { border-left: 4px solid var(--accent); }
+  .map-card.s { border-left: 4px solid var(--accent-3); }
+  .map-card .lbl { font-family: -apple-system, sans-serif; font-size: 11px;
+                   letter-spacing: 0.18em; text-transform: uppercase;
+                   color: var(--ink-mute); margin-bottom: 6px; font-weight: 700; }
+  .map-card.h .lbl { color: var(--accent); }
+  .map-card.s .lbl { color: var(--accent-3); }
+  .map-card h4 { margin: 0 0 8px; font-size: 18px; font-weight: 700;
+                 letter-spacing: -0.005em; }
+  .map-card p, .map-card ul { color: var(--ink-soft); font-size: 14.5px; margin: 0;
+                              font-family: -apple-system, "PingFang SC", sans-serif; }
+  .map-card ul { padding-left: 20px; }
+  .map-card li { margin-bottom: 4px; }
+  .map-card .api { display: inline-block; margin: 2px 4px 2px 0;
+                   font-family: ui-monospace, monospace; font-size: 12.5px;
+                   background: rgba(74,124,201,0.10); color: #2a4a82;
+                   border: 1px solid rgba(74,124,201,0.25);
+                   padding: 2px 7px; border-radius: 3px; }
+  .map-card.h .api { background: rgba(217,105,65,0.10); color: #8a3a1f;
+                     border-color: rgba(217,105,65,0.25); }
+  .arrow { display: flex; align-items: center; justify-content: center;
+           font-family: Georgia, serif; font-size: 26px; color: var(--ink-mute);
+           font-style: italic; }
+
+  /* Agentic loop grid */
+  .loop { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 6px; }
+  .loop .node { background: var(--paper); border: 1px solid var(--line);
+                border-top: 4px solid var(--accent-3); border-radius: 4px;
+                padding: 14px 12px; position: relative; }
+  .loop .node:nth-child(1) { border-top-color: var(--accent); }
+  .loop .node:nth-child(2) { border-top-color: var(--accent-2); }
+  .loop .node:nth-child(3) { border-top-color: var(--bad); }
+  .loop .node:nth-child(4) { border-top-color: var(--good); }
+  .loop .node:nth-child(5) { border-top-color: var(--accent-3); }
+  .loop .node:nth-child(6) { border-top-color: var(--warn); }
+  .loop .node .n { font-family: Georgia, serif; font-style: italic;
+                   font-weight: 700; font-size: 12px; color: var(--accent);
+                   letter-spacing: 0.08em; }
+  .loop .node h5 { margin: 4px 0 8px; font-size: 14px; font-weight: 700; }
+  .loop .node ul { padding-left: 16px; margin: 0; font-size: 11.5px;
+                   color: var(--ink-soft); font-family: -apple-system, "PingFang SC", sans-serif; }
+  .loop .node li { margin-bottom: 3px; }
+  .loop .node code { font-size: 10.5px; padding: 1px 4px; }
+
+  .sidecar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+  .sidecar .s-box { background: var(--bg); border: 1px dashed var(--ink-mute);
+                    border-radius: 3px; padding: 10px 12px; font-family: -apple-system, "PingFang SC", sans-serif; }
+  .sidecar .s-box .t { font-size: 11px; color: var(--accent); font-weight: 700;
+                       letter-spacing: 0.12em; text-transform: uppercase; }
+  .sidecar .s-box .d { font-size: 12.5px; color: var(--ink-soft); margin-top: 4px; }
+  .sidecar .s-box code { font-size: 11px; }
+
+  /* topology */
+  .topo { display: grid; grid-template-columns: 1fr 60px 1fr 60px 1fr; gap: 12px;
+          align-items: center; margin-top: 12px; }
+  .topo .box { background: var(--paper); border: 1px solid var(--line);
+               border-top: 4px solid var(--accent-3); border-radius: 4px;
+               padding: 18px 16px; text-align: center; }
+  .topo .box.app { border-top-color: var(--accent); }
+  .topo .box.cli { border-top-color: var(--accent-2); }
+  .topo .box.up  { border-top-color: var(--warn); }
+  .topo .box h5 { margin: 0 0 8px; font-size: 16px; font-weight: 700; }
+  .topo .box p { margin: 0; font-size: 13px; color: var(--ink-soft);
+                 font-family: -apple-system, "PingFang SC", sans-serif; }
+  .topo .box code { font-size: 11.5px; }
+  .topo .conn { text-align: center; font-family: -apple-system, sans-serif;
+                font-size: 12px; color: var(--ink-mute); }
+  .topo .conn .ar { font-size: 22px; color: var(--ink); display: block; line-height: 1; }
+  .topo .conn .lb { display: block; margin-top: 4px; font-style: italic; }
+
+  /* TOC */
+  .toc { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 20px; }
+  .toc-item { display: flex; gap: 16px; padding: 16px 18px; background: var(--paper);
+              border: 1px solid var(--line); border-radius: 4px; align-items: center;
+              transition: all .2s; text-decoration: none; color: inherit; }
+  .toc-item:hover { border-color: var(--accent); transform: translateX(4px); }
+  .toc-item .num { font-family: Georgia, serif; font-style: italic;
+                   font-size: 28px; font-weight: 700; color: var(--accent);
+                   min-width: 44px; letter-spacing: -0.02em; }
+  .toc-item .body { flex: 1; }
+  .toc-item .ttl { font-weight: 700; font-size: 16px; margin-bottom: 2px; }
+  .toc-item .desc { font-size: 13px; color: var(--ink-soft);
+                    font-family: -apple-system, "PingFang SC", sans-serif; }
+
+  /* Equation / pull */
+  .eq { display: flex; align-items: center; justify-content: center; gap: 18px;
+        padding: 28px 24px; background: var(--paper); border: 1px solid var(--line);
+        border-radius: 4px; margin: 28px 0; font-size: 22px; font-weight: 700;
+        letter-spacing: -0.01em; flex-wrap: wrap; }
+  .eq .pill { padding: 10px 22px; border-radius: 4px; border: 2px solid var(--ink); background: var(--bg); }
+  .eq .pill.harness { color: var(--accent); border-color: var(--accent); }
+  .eq .pill.sdk     { color: var(--accent-3); border-color: var(--accent-3); }
+  .eq .op { color: var(--ink-mute); font-weight: 400; font-style: italic; }
+
+  blockquote { margin: 20px 0 0; padding: 16px 22px; background: var(--paper);
+               border-left: 3px solid var(--accent); border-radius: 0 4px 4px 0;
+               font-size: 15px; color: var(--ink-soft);
+               font-family: -apple-system, "PingFang SC", sans-serif; }
+  blockquote strong { color: var(--ink); }
+
+  /* Takeaway grid */
+  .take { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 20px; }
+  .take .t-card { background: var(--paper); border: 1px solid var(--line);
+                  border-top: 4px solid var(--accent); border-radius: 4px; padding: 20px; }
+  .take .t-card:nth-child(2) { border-top-color: var(--accent-3); }
+  .take .t-card:nth-child(3) { border-top-color: var(--accent-2); }
+  .take .t-card h4 { margin: 0 0 10px; font-size: 17px; font-weight: 700; }
+  .take .t-card p { margin: 0; font-size: 14px; color: var(--ink-soft);
+                    font-family: -apple-system, "PingFang SC", sans-serif; }
+
+  @media (max-width: 980px) {
+    .map-row { grid-template-columns: 1fr; }
+    .arrow { transform: rotate(90deg); }
+    .loop { grid-template-columns: repeat(2, 1fr); }
+    .sidecar { grid-template-columns: repeat(2, 1fr); }
+    .topo { grid-template-columns: 1fr; }
+    .topo .conn { transform: rotate(90deg); }
+    .toc { grid-template-columns: 1fr; }
+    .take { grid-template-columns: 1fr; }
+    h1 { font-size: 38px; }
+    .sec-head h2 { font-size: 26px; }
+  }
+
+  /* ============ Embedded one-page architecture diagram ============ */
+  .arch { display: grid; grid-template-columns: 0.95fr 1.4fr; gap: 14px; margin-top: 6px; }
+  .arch .col-head { font-family: -apple-system, sans-serif;
+                    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+                    color: var(--ink-mute); font-weight: 700;
+                    border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-bottom: 10px; }
+  .arch .col-head strong { color: var(--accent); }
+  .arch .col-head em { font-style: italic; color: var(--accent); font-family: Georgia, serif; font-weight: 700; }
+
+  .arch-decisions { display: grid; grid-template-rows: repeat(5, 1fr); gap: 8px; }
+  .arch-dec { background: var(--paper); border: 1px solid var(--line);
+              border-left: 4px solid var(--accent); border-radius: 3px;
+              padding: 9px 12px; display: grid; grid-template-columns: 28px 1fr;
+              gap: 10px; align-items: center; }
+  .arch-dec:nth-child(2) { border-left-color: var(--accent-3); }
+  .arch-dec:nth-child(3) { border-left-color: var(--accent-2); }
+  .arch-dec:nth-child(4) { border-left-color: var(--bad); }
+  .arch-dec:nth-child(5) { border-left-color: #8a5cb5; }
+  .arch-dec .num { font-family: Georgia, serif; font-style: italic; font-weight: 800;
+                   font-size: 26px; color: var(--accent); text-align: center; line-height: 1; }
+  .arch-dec:nth-child(2) .num { color: var(--accent-3); }
+  .arch-dec:nth-child(3) .num { color: var(--accent-2); }
+  .arch-dec:nth-child(4) .num { color: var(--bad); }
+  .arch-dec:nth-child(5) .num { color: #8a5cb5; }
+  .arch-dec h3 { margin: 0 0 3px; font-size: 14.5px; font-weight: 700; letter-spacing: -0.005em; }
+  .arch-dec .apis { font-size: 12px; color: var(--ink-soft); line-height: 1.55;
+                    font-family: -apple-system, "PingFang SC", sans-serif; }
+  .arch-dec .apis code { font-size: 10.5px; padding: 0 4px; margin: 0 1px;
+                          background: rgba(74,124,201,0.10); color: #2a4a82;
+                          border: 1px solid rgba(74,124,201,0.22); border-radius: 3px;
+                          font-family: ui-monospace, monospace; }
+
+  .arch-loop { background: var(--paper); border: 1px solid var(--line);
+               border-radius: 4px; padding: 12px;
+               display: grid; grid-template-columns: repeat(3, 1fr);
+               grid-template-rows: repeat(2, 1fr); gap: 10px; position: relative; }
+  .arch-loop::before {
+    content: "↻ loop"; position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    font-family: Georgia, serif; font-style: italic; font-size: 13px;
+    color: var(--ink-mute); background: var(--paper); padding: 2px 10px;
+    border: 1px dashed var(--ink-mute); border-radius: 12px;
+    z-index: 1; pointer-events: none;
+  }
+  .arch-node { background: var(--bg); border: 1px solid var(--line);
+               border-top: 3px solid var(--accent); border-radius: 3px;
+               padding: 8px 10px; }
+  .arch-node.n1 { border-top-color: var(--accent); }
+  .arch-node.n2 { border-top-color: var(--accent-2); }
+  .arch-node.n3 { border-top-color: var(--bad); }
+  .arch-node.n4 { border-top-color: var(--good); }
+  .arch-node.n5 { border-top-color: var(--accent-3); }
+  .arch-node.n6 { border-top-color: var(--warn); }
+  .arch-node .step { font-family: Georgia, serif; font-style: italic; font-weight: 700;
+                     font-size: 10.5px; color: var(--accent); letter-spacing: 0.06em; }
+  .arch-node.n2 .step { color: var(--accent-2); }
+  .arch-node.n3 .step { color: var(--bad); }
+  .arch-node.n4 .step { color: var(--good); }
+  .arch-node.n5 .step { color: var(--accent-3); }
+  .arch-node.n6 .step { color: #b8842c; }
+  .arch-node h4 { margin: 2px 0 5px; font-size: 13.5px; font-weight: 700; }
+  .arch-node ul { margin: 0; padding-left: 14px; font-size: 11.5px; color: var(--ink-soft);
+                  font-family: -apple-system, "PingFang SC", sans-serif; line-height: 1.5; }
+  .arch-node li { margin-bottom: 1px; }
+  .arch-node code { font-size: 10.5px; padding: 0 3px;
+                    background: rgba(74,124,201,0.10); color: #2a4a82;
+                    border: 1px solid rgba(74,124,201,0.22); border-radius: 3px;
+                    font-family: ui-monospace, monospace; }
+
+  .arch-sidecar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+  .arch-sc { background: var(--paper); border: 1px dashed var(--ink-mute);
+             border-radius: 3px; padding: 6px 10px;
+             font-family: -apple-system, "PingFang SC", sans-serif; }
+  .arch-sc .t { font-size: 10px; color: var(--accent); font-weight: 700;
+                letter-spacing: 0.12em; text-transform: uppercase; }
+  .arch-sc .d { font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; line-height: 1.5; }
+  .arch-sc code { font-size: 10.5px; padding: 0 3px;
+                  background: rgba(74,124,201,0.10); color: #2a4a82;
+                  border: 1px solid rgba(74,124,201,0.22); border-radius: 3px;
+                  font-family: ui-monospace, monospace; }
+
+  .arch-topo { background: var(--paper); border: 1px solid var(--line);
+               border-radius: 4px; padding: 10px 14px; margin-top: 14px;
+               display: grid; grid-template-columns: 1fr 36px 1fr 36px 1fr;
+               align-items: center; gap: 10px; }
+  .arch-tbox { border: 1px solid var(--line); border-top: 3px solid var(--accent);
+               border-radius: 3px; padding: 8px 12px; background: var(--bg); }
+  .arch-tbox.app { border-top-color: var(--accent); }
+  .arch-tbox.cli { border-top-color: var(--accent-2); }
+  .arch-tbox.up  { border-top-color: var(--warn); }
+  .arch-tbox h5 { margin: 0 0 2px; font-size: 13.5px; font-weight: 700; }
+  .arch-tbox p { margin: 0; font-size: 12px; color: var(--ink-soft); line-height: 1.5;
+                 font-family: -apple-system, "PingFang SC", sans-serif; }
+  .arch-tbox code { font-size: 10.5px; padding: 0 3px;
+                    background: rgba(74,124,201,0.10); color: #2a4a82;
+                    border: 1px solid rgba(74,124,201,0.22); border-radius: 3px;
+                    font-family: ui-monospace, monospace; }
+  .arch-conn { text-align: center; font-family: -apple-system, sans-serif;
+               font-size: 10.5px; color: var(--ink-mute); }
+  .arch-conn .a { display: block; font-size: 20px; color: var(--ink); line-height: 1; }
+  .arch-conn .l { display: block; font-style: italic; margin-top: 2px; font-size: 10px; }
+
+  @media (max-width: 980px) {
+    .arch { grid-template-columns: 1fr; }
+    .arch-loop { grid-template-columns: repeat(2, 1fr); }
+    .arch-loop::before { display: none; }
+    .arch-sidecar { grid-template-columns: repeat(2, 1fr); }
+    .arch-topo { grid-template-columns: 1fr; }
+    .arch-conn { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar sans">
+  <div class="brand">
+    GHCP SDK <span class="sep">·</span> <span class="sub">Harness Engineering 映射</span>
+  </div>
+  <div class="badges">
+    <span class="badge year">v0.3.0</span>
+    <span class="badge count">10 slides</span>
+  </div>
+</header>
+
+<nav class="dotnav" id="dotnav">
+  <a href="#s1" data-label="封面" class="active"></a>
+  <a href="#s-toc" data-label="目录"></a>
+  <a href="#s-eq"  data-label="主架构图"></a>
+  <a href="#s-d1"  data-label="决策① 上下文"></a>
+  <a href="#s-d2"  data-label="决策② 能力"></a>
+  <a href="#s-d3"  data-label="决策③ 状态"></a>
+  <a href="#s-d4"  data-label="决策④ 危险动作"></a>
+  <a href="#s-d5"  data-label="决策⑤ 记忆"></a>
+  <a href="#s-loop" data-label="Agentic Loop"></a>
+  <a href="#s-topo" data-label="物理拓扑"></a>
+  <a href="#s-take" data-label="Takeaway"></a>
+</nav>
+
+<!-- 1. Cover -->
+<section class="slide" id="s1">
+  <div class="slide-num"><strong>01</strong> / 11</div>
+  <div class="slide-inner">
+    <div class="eyebrow">Engineering Mapping · 2026.05</div>
+    <h1>GHCP SDK <em>≠</em> LLM 客户端<br/>是 <em>Agent Harness</em> 的产品化薄壳</h1>
+    <p class="subtitle">
+      把 <strong>Harness Engineering 的 5 个工程决策</strong>，逐一对到 GHCP SDK 的具体 API。
+      你在业务代码里调的每一个参数 / 方法，都对应 harness 工程一颗特定的螺丝。
+    </p>
+    <div class="chips">
+      <span class="chip c1">决策① 上下文主权</span>
+      <span class="chip c2">决策② 能力暴露</span>
+      <span class="chip c3">决策③ 状态持久化</span>
+      <span class="chip c1">决策④ 危险动作 / HITL</span>
+      <span class="chip c2">决策⑤ 记忆与遗忘</span>
+    </div>
+  </div>
+</section>
+
+<!-- 2. TOC -->
+<section class="slide alt" id="s-toc">
+  <div class="slide-num"><strong>02</strong> / 11</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <h2>这份映射 <em>怎么读</em></h2>
+      <p class="lead">每一页左边是 harness 工程要解决的问题，右边是 GHCP SDK 用来解决它的具体 API 钩子。</p>
+    </div>
+    <div class="toc">
+      <a href="#s-eq" class="toc-item">
+        <div class="num">00</div>
+        <div class="body"><div class="ttl">主架构图 · 一页全景</div>
+          <div class="desc">5 决策 + 6 节点 Agentic Loop + 物理拓扑 一屏看完</div></div>
+      </a>
+      <a href="#s-d1" class="toc-item">
+        <div class="num">01</div>
+        <div class="body"><div class="ttl">决策① 上下文主权</div>
+          <div class="desc">system_message · working_directory · infinite_sessions</div></div>
+      </a>
+      <a href="#s-d2" class="toc-item">
+        <div class="num">02</div>
+        <div class="body"><div class="ttl">决策② 能力暴露</div>
+          <div class="desc">tools · mcp_servers · skill_directories · 白/黑名单 · overrides</div></div>
+      </a>
+      <a href="#s-d3" class="toc-item">
+        <div class="num">03</div>
+        <div class="body"><div class="ttl">决策③ 状态持久化</div>
+          <div class="desc">events.jsonl · resume_session · sessions.fork · SessionFsProvider</div></div>
+      </a>
+      <a href="#s-d4" class="toc-item">
+        <div class="num">04</div>
+        <div class="body"><div class="ttl">决策④ 危险动作 / HITL</div>
+          <div class="desc">on_permission_request · 8 PermissionKind · abort · elicitation · commands</div></div>
+      </a>
+      <a href="#s-d5" class="toc-item">
+        <div class="num">05</div>
+        <div class="body"><div class="ttl">决策⑤ 记忆与遗忘</div>
+          <div class="desc">infinite_sessions 压缩 · skills (文件即协议) · customize · AGENTS.md</div></div>
+      </a>
+      <a href="#s-loop" class="toc-item">
+        <div class="num">06</div>
+        <div class="body"><div class="ttl">Agentic Loop 一次 send 的 6 节点</div>
+          <div class="desc">Context Build → LLM → Permission Gate → Tool Exec → Observation → Compaction</div></div>
+      </a>
+      <a href="#s-topo" class="toc-item">
+        <div class="num">07</div>
+        <div class="body"><div class="ttl">物理拓扑</div>
+          <div class="desc">Python app ↔ bundled CLI subprocess ↔ upstream models</div></div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- 3. 主架构图 · 一页全景 -->
+<section class="slide" id="s-eq">
+  <div class="slide-num"><strong>03</strong> / 11</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <h2>主架构图 · <em>一页全景</em></h2>
+      <p class="lead">
+        左侧 5 根支柱 = harness 工程决策；右侧中心 6 节点 = 一次 <code>send</code> 的 agentic loop；
+        所有决策的 SDK API 最终都落在 loop 的某一格。下方为物理拓扑。
+      </p>
+    </div>
+
+    <div class="arch">
+      <!-- LEFT: 5 decisions -->
+      <div>
+        <div class="col-head">Harness 工程决策 <strong>· 5 根支柱</strong></div>
+        <div class="arch-decisions">
+          <div class="arch-dec">
+            <div class="num">①</div>
+            <div>
+              <h3>上下文主权 · Context Sovereignty</h3>
+              <div class="apis"><code>system_message</code>（append / replace / customize）10 sections ·
+                <code>working_directory</code> · <code>infinite_sessions</code>（0.80 / 0.95）</div>
+            </div>
+          </div>
+          <div class="arch-dec">
+            <div class="num">②</div>
+            <div>
+              <h3>能力暴露 · Tool Curation</h3>
+              <div class="apis"><code>tools=[@define_tool]</code> · <code>mcp_servers</code> · <code>skill_directories</code> ·
+                <code>available_tools</code> / <code>excluded_tools</code> · <code>overrides_built_in_tool</code> ·
+                <code>custom_agents</code> + <code>task</code></div>
+            </div>
+          </div>
+          <div class="arch-dec">
+            <div class="num">③</div>
+            <div>
+              <h3>状态持久化 · Stateful Replay</h3>
+              <div class="apis"><code>events.jsonl</code>（append-only）· <code>resume_session</code> ·
+                <code>sessions.fork(to_event_id)</code> · <code>SessionFsProvider</code>（10 async）</div>
+            </div>
+          </div>
+          <div class="arch-dec">
+            <div class="num">④</div>
+            <div>
+              <h3>危险动作 &amp; HITL · Permission Gate</h3>
+              <div class="apis"><code>on_permission_request</code> + 8 <code>Kind</code> · <code>abort()</code> ·
+                <code>on_user_input_request</code> · <code>on_elicitation_request</code> · <code>commands=[/xxx]</code></div>
+            </div>
+          </div>
+          <div class="arch-dec">
+            <div class="num">⑤</div>
+            <div>
+              <h3>记忆与遗忘 · Memory Lifecycle</h3>
+              <div class="apis"><code>infinite_sessions</code> 压缩 · <code>skills/SKILL.md</code> · <code>AGENTS.md</code> ·
+                <code>history.compact</code> / <code>truncate</code> · <code>fork(to_event_id=evt)</code></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Agentic loop + sidecar -->
+      <div>
+        <div class="col-head">Agentic Loop <strong>· 一次 <code>send</code> 的 6 节点</strong> — <em>所有决策落在这里</em></div>
+        <div class="arch-loop">
+          <div class="arch-node n1">
+            <div class="step">① CONTEXT BUILD</div>
+            <h4>组装 prompt</h4>
+            <ul>
+              <li><code>system_message</code> 3 模式</li>
+              <li><code>working_directory</code> 环境段</li>
+              <li>tools / mcp schema 注入</li>
+              <li>skills · AGENTS.md 文件级</li>
+            </ul>
+          </div>
+          <div class="arch-node n2">
+            <div class="step">② LLM CALL</div>
+            <h4>上游推理</h4>
+            <ul>
+              <li><code>provider=</code> 路由</li>
+              <li><code>model</code> · <code>set_model()</code></li>
+              <li><code>reasoning_effort</code></li>
+              <li><code>streaming=True</code></li>
+            </ul>
+          </div>
+          <div class="arch-node n3">
+            <div class="step">③ PERMISSION GATE</div>
+            <h4>副作用闸门</h4>
+            <ul>
+              <li><code>on_permission_request</code></li>
+              <li>8 Kind · once/session/location</li>
+              <li>所有 write 必经此处</li>
+            </ul>
+          </div>
+          <div class="arch-node n4">
+            <div class="step">④ TOOL EXEC</div>
+            <h4>实际执行</h4>
+            <ul>
+              <li>built-in: bash/view/edit/grep</li>
+              <li>custom <code>@define_tool</code></li>
+              <li>MCP / Skill 子进程</li>
+              <li><code>SessionFsProvider</code> 接管 FS</li>
+            </ul>
+          </div>
+          <div class="arch-node n5">
+            <div class="step">⑤ OBSERVATION</div>
+            <h4>事件回流</h4>
+            <ul>
+              <li><code>session.on(handler)</code></li>
+              <li><code>events.jsonl</code> 落盘</li>
+              <li><code>get_messages()</code> 取历史</li>
+            </ul>
+          </div>
+          <div class="arch-node n6">
+            <div class="step">⑥ COMPACTION</div>
+            <h4>窗口管理</h4>
+            <ul>
+              <li><code>infinite_sessions</code> 0.80 预压</li>
+              <li>0.95 硬切 · head+summary+tail</li>
+              <li>→ 回 ① 开下一轮</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="arch-sidecar">
+          <div class="arch-sc"><div class="t">Persistence 横切</div>
+            <div class="d">每节点 → <code>events.jsonl</code><br/><code>resume</code> / <code>fork</code></div></div>
+          <div class="arch-sc"><div class="t">Hooks 横切</div>
+            <div class="d"><code>SessionHooks</code> 6 类<br/>session/tool/llm × before/after</div></div>
+          <div class="arch-sc"><div class="t">Sub-agents 横切</div>
+            <div class="d">主 agent <code>task</code> 派发<br/>子 agent 独立 context</div></div>
+          <div class="arch-sc"><div class="t">Steering 横切</div>
+            <div class="d"><code>abort</code> · <code>ask_user</code> · elicitation<br/><code>/commands</code> 任意点打断</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- physical topology -->
+    <div class="arch-topo">
+      <div class="arch-tbox app">
+        <h5>① Python 业务进程</h5>
+        <p>你的代码 · <code>CopilotClient()</code><br/>挂 callbacks: tools / hooks / commands / on_* / Fs</p>
+      </div>
+      <div class="arch-conn"><span class="a">→</span><span class="l">spawn · JSON-RPC / stdio</span></div>
+      <div class="arch-tbox cli">
+        <h5>② Bundled <code>copilot</code> CLI 子进程</h5>
+        <p><strong>Harness Engine 本体</strong> · agentic loop / 内建工具 / 权限调度<br/>状态落盘 <code>~/.copilot/session-state/&lt;uuid&gt;/</code></p>
+      </div>
+      <div class="arch-conn"><span class="a">→</span><span class="l">HTTPS · azure / openai / ollama</span></div>
+      <div class="arch-tbox up">
+        <h5>③ 上游模型</h5>
+        <p>Azure OpenAI · OpenAI 兼容 · Ollama<br/>BYOK <code>provider=</code> 每次 <code>resume</code> 都要重传</p>
+      </div>
+    </div>
+
+    <blockquote style="margin-top: 14px;">
+      <strong>判别式</strong>：想做一件事时问 “<em>SDK 里哪个参数对应它？</em>”——找得到说明产品化了；找不到才需要去 hooks/RPC 里自己接。
+    </blockquote>
+  </div>
+</section>
+
+<!-- 4. 决策① 上下文主权 -->
+<section class="slide alt" id="s-d1">
+  <div class="slide-num"><strong>04</strong> / 11</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <h2>决策 ① <em>上下文主权</em> —— 谁在写 prompt？</h2>
+      <p class="lead">Harness 的第一根支柱是主动管理 context window；SDK 用 3 个钩子把这件事产品化。</p>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>系统提示词的注入姿势</h4>
+        <p>不能只给 LLM 一段裸 prompt：要分身份/工具说明/安全/风格分层组装；要能精准外科手术，也要保留护栏。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4><code>system_message=</code> 三种模式</h4>
+        <p>
+          <span class="api">mode=\"append\"</span> 保留 SDK 全部护栏，仅追加角色/风格<br/>
+          <span class="api">mode=\"replace\"</span> ⚠️ 完全替换，护栏全失效<br/>
+          <span class="api">mode=\"customize\"</span> 按 section 改：<code>identity / tone / safety / guidelines / …</code>（10 段）
+        </p>
+      </div>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>Workspace 上下文 + 自动事实段</h4>
+        <p>CWD、git root、目录列表、可用工具清单这些 \"环境注入\"，每次 turn 都要自动拼。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4>工作目录与配置目录</h4>
+        <p>
+          <span class="api">working_directory=</span> 决定 environment_context 段<br/>
+          <span class="api">session.workspace_path</span> 拿到归一化的运行目录<br/>
+          <span class="api">config_dir=</span> 切换 <code>~/.copilot</code> 默认配置/状态目录
+        </p>
+      </div>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>压缩边界 = 缓存边界</h4>
+        <p>历史无限增长时必须压缩，但压缩点要选在前缀缓存命中之后，否则 token 成本爆炸。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4><code>infinite_sessions=</code> 阈值控制</h4>
+        <p>
+          <span class="api">enabled=True</span> 默认开<br/>
+          <span class="api">background_compaction_threshold=0.80</span> 后台预压<br/>
+          <span class="api">buffer_exhaustion_threshold=0.95</span> 硬切线
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. 决策② 能力暴露 -->
+<section class="slide" id="s-d2">
+  <div class="slide-num"><strong>05</strong> / 11</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <h2>决策 ② <em>能力暴露</em> —— 让 LLM 看见什么工具，看不见什么</h2>
+      <p class="lead">Harness 拒绝给 LLM <code>shell(cmd: str)</code> 这种万能口；SDK 提供 3 种工具来源 + 3 种裁剪手段。</p>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>三种工具来源</h4>
+        <p>业务专属工具、跨进程能力、横向复用知识 —— 三类工具要走不同接入口，不能搅在一起。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4>三个并列入口</h4>
+        <p>
+          <span class="api">tools=[ @define_tool ... ]</span> 进程内 Python<br/>
+          <span class="api">mcp_servers={...}</span> MCP 子进程 / HTTP<br/>
+          <span class="api">skill_directories=[...]</span> 文件系统就是协议
+        </p>
+      </div>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>能力裁剪 / 收口</h4>
+        <p>主 agent 只该看到 \"路由\" 类工具；执行类工具交给 sub-agent。harness 必须能按角色裁剪。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4>白名单 · 黑名单 · 覆写</h4>
+        <p>
+          <span class="api">available_tools=[...]</span> 白名单（最高优先级）<br/>
+          <span class="api">excluded_tools=[...]</span> 黑名单（白名单未设时生效）<br/>
+          <span class="api">overrides_built_in_tool=True</span> 用自己的实现替换 <code>bash / view / edit_file</code>
+        </p>
+      </div>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>主 / 子 agent 编排</h4>
+        <p>每个子 agent 是独立 context window + 独立工具集，避免主 agent 上下文爆炸。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4>Custom Agents + <code>task</code> 内建工具</h4>
+        <p>
+          <span class="api">custom_agents=[CustomAgentConfig(...)]</span><br/>
+          <span class="api">default_agent=DefaultAgentConfig(excluded_tools=[...])</span> 强制主 agent 委派<br/>
+          <span class="api">agent=\"name\"</span> 启动时激活的角色<br/>
+          内建 <span class="api">task</span> 工具 = 子 agent 调度入口
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. 决策③ 状态持久化 -->
+<section class="slide alt" id="s-d3">
+  <div class="slide-num"><strong>06</strong> / 11</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <h2>决策 ③ <em>状态持久化</em> —— 历史是 append-only 的真理</h2>
+      <p class="lead">Harness 工程把 state 视为头等公民；SDK 用 events.jsonl + SQLite 索引把它默认产品化。</p>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>事件化 + 跨进程恢复</h4>
+        <p>历史必须 append-only、可重放；进程崩溃后下次拉起要无缝接上同一个对话。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4>events.jsonl + <code>resume_session</code></h4>
+        <p>
+          <code>~/.copilot/session-state/&lt;uuid&gt;/events.jsonl</code> 真理源（append-only）<br/>
+          <code>~/.copilot/session-store.db</code> SQLite 索引（延迟写）<br/>
+          <span class="api">client.resume_session(sid, provider=..., on_permission_request=...)</span><br/>
+          <span class="api">disable_resume=True</span> 静默接管，不触发 resume 事件
+        </p>
+      </div>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>分支探索（A/B、Backup）</h4>
+        <p>同一历史拉两条岔路并行实验；高风险动作前先 fork 备份。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4><code>sessions.fork</code>（experimental）</h4>
+        <p>
+          <span class="api">client.rpc.sessions.fork(SessionsForkRequest(session_id, to_event_id=None))</span><br/>
+          <code>to_event_id</code> 指定在哪个事件之前切断；返回新 <code>session_id</code>，<code>resume_session</code> 接上即可独立演化。
+        </p>
+      </div>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>Workspace 虚拟化</h4>
+        <p>Workspace 不一定在本地：可能是远端容器、S3、内存、数据库。所有 fs 操作必须走业务自己的实现。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4><code>SessionFsProvider</code> 抽象</h4>
+        <p>
+          继承 <span class="api">SessionFsProvider</span>，实现 10 个 async 方法<br/>
+          <span class="api">create_session_fs_adapter(provider)</span> 包成 handler<br/>
+          <span class="api">create_session_fs_handler=lambda s: adapter</span> 注入 → 所有内建 fs 工具自动走你的 Provider
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7. 决策④ 危险动作 / HITL -->
+<section class="slide" id="s-d4">
+  <div class="slide-num"><strong>07</strong> / 11</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <h2>决策 ④ <em>危险动作 &amp; HITL</em> —— 写动作必须经人闸门</h2>
+      <p class="lead">Harness 的硬约束：Agent 永远不直接执行 write。SDK 把所有副作用都路由到一个回调。</p>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>统一权限闸门</h4>
+        <p>所有有副作用的工具调用都必须先停在闸门前，由 Policy / 人类来批准、拒绝或要求 \"再问一次\"。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4><code>on_permission_request=</code> + 8 种 Kind</h4>
+        <p>
+          <span class="api">on_permission_request: (req, inv) -&gt; PermissionRequestResult</span><br/>
+          8 个 <span class="api">PermissionRequestKind</span>：write / read / commands / mcp / mcp_sampling / custom_tool / memory<br/>
+          决策粒度：<span class="api">approve-once / reject / user-not-available / no-result</span><br/>
+          作用域：once / for-session / for-location（路径前缀）
+        </p>
+      </div>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>Steering / 人在回路</h4>
+        <p>必须能随时打断；agent 也应能反过来向用户问问题、要结构化输入、注册自定义指令。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4>四种反向通道</h4>
+        <p>
+          <span class="api">session.abort()</span> 随时打断当前 turn<br/>
+          <span class="api">on_user_input_request=</span> 启用 <code>ask_user</code> 工具<br/>
+          <span class="api">on_elicitation_request=</span> 结构化表单对话（JSON schema）<br/>
+          <span class="api">commands=[CommandDefinition(...)]</span> 注册 <code>/xxx</code> 路由
+        </p>
+      </div>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>整段生命周期 Hook</h4>
+        <p>不止权限点，session 启动 / 工具调用前后 / LLM 调用前后都要能挂钩，做审计、改写、注入。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4><code>hooks=SessionHooks(...)</code></h4>
+        <p>6 类 Hook：<code>on_session_start</code> / <code>on_session_end</code> / <code>on_tool_call</code>（before/after）/ <code>on_llm_call</code>（before/after）—— 统一拦截点，可读可改可阻断。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8. 决策⑤ 记忆 -->
+<section class="slide alt" id="s-d5">
+  <div class="slide-num"><strong>08</strong> / 11</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <h2>决策 ⑤ <em>记忆与遗忘</em> —— 写、读、忘的工程化</h2>
+      <p class="lead">短期记忆靠压缩，长期记忆靠文件。harness 把记忆做成可读、可写、可被 LLM 显式查询。</p>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>短期：压缩窗口</h4>
+        <p>对话超长 → 用 LLM 把中段浓缩成 summary，保留 head 和 tail。压缩时机决定缓存命中率。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4><code>infinite_sessions</code> + Reasoning 调度</h4>
+        <p>
+          <span class="api">background_compaction_threshold=0.80</span> 在缓存未失效前预压缩<br/>
+          <span class="api">buffer_exhaustion_threshold=0.95</span> 兜底硬切<br/>
+          <span class="api">reasoning_effort=\"high\"</span> 配合 reasoning 模型，压缩质量更高
+        </p>
+      </div>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>长期：文件系统 = 知识协议</h4>
+        <p>把跨会话事实写到文件，让下次 session 启动时由 SDK 自动注入到 prompt（不是 RAG，而是预加载）。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4>Skills + <code>AGENTS.md</code> + customize</h4>
+        <p>
+          <span class="api">skill_directories=[...]</span> 自动发现 <code>SKILL.md</code> 并注入 frontmatter<br/>
+          <code>AGENTS.md</code> 仓库根 → 自动并入 custom_instructions 段<br/>
+          <span class="api">system_message={\"mode\":\"customize\",\"sections\":{\"custom_instructions\":{...}}}</span> 程序化追加
+        </p>
+      </div>
+    </div>
+
+    <div class="map-row">
+      <div class="map-card h">
+        <div class="lbl">Harness 关注点</div>
+        <h4>遗忘 / 截断 / 重写</h4>
+        <p>有时候要主动忘掉一段（隐私、错误结论），harness 必须给出 surgical 操作而不是只能 \"全清\"。</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="map-card s">
+        <div class="lbl">SDK API</div>
+        <h4>历史压缩与截断 RPC</h4>
+        <p>
+          <span class="api">history.compact_context_window</span> 主动触发压缩<br/>
+          <span class="api">history.truncate</span> 截断到指定 turn<br/>
+          配合 <span class="api">sessions.fork(to_event_id=...)</span> 从 \"还干净\" 那一刻开新分支
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9. Agentic Loop -->
+<section class="slide" id="s-loop">
+  <div class="slide-num"><strong>09</strong> / 11</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <h2>一次 <code>send</code> 的 <em>6 节点</em> Agentic Loop</h2>
+      <p class="lead">所有上面 5 个决策的 API，最终都会落到这条循环里的某一个节点上。</p>
+    </div>
+
+    <div class="loop">
+      <div class="node">
+        <div class="n">① Context Build</div>
+        <h5>组装 prompt</h5>
+        <ul>
+          <li><code>system_message</code></li>
+          <li><code>working_directory</code></li>
+          <li>tool schema 注入</li>
+          <li>skills / AGENTS.md</li>
+        </ul>
+      </div>
+      <div class="node">
+        <div class="n">② LLM Call</div>
+        <h5>上游模型</h5>
+        <ul>
+          <li><code>provider=</code></li>
+          <li><code>model=</code> · <code>set_model()</code></li>
+          <li><code>reasoning_effort=</code></li>
+          <li><code>streaming=True</code></li>
+        </ul>
+      </div>
+      <div class="node">
+        <div class="n">③ Permission Gate</div>
+        <h5>副作用闸门</h5>
+        <ul>
+          <li><code>on_permission_request</code></li>
+          <li>8 种 <code>Kind</code></li>
+          <li>once / session / location</li>
+        </ul>
+      </div>
+      <div class="node">
+        <div class="n">④ Tool Exec</div>
+        <h5>实际执行</h5>
+        <ul>
+          <li>tools / mcp / skills</li>
+          <li>SessionFsProvider</li>
+          <li><code>available_tools</code></li>
+        </ul>
+      </div>
+      <div class="node">
+        <div class="n">⑤ Observation</div>
+        <h5>事件回流</h5>
+        <ul>
+          <li><code>session.on(handler)</code></li>
+          <li>events.jsonl 落盘</li>
+          <li><code>get_messages()</code></li>
+        </ul>
+      </div>
+      <div class="node">
+        <div class="n">⑥ Compaction</div>
+        <h5>窗口管理</h5>
+        <ul>
+          <li><code>infinite_sessions</code></li>
+          <li>0.80 / 0.95 阈值</li>
+          <li>→ 回 ① 拼下一轮</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="sidecar">
+      <div class="s-box">
+        <div class="t">Persistence 横切</div>
+        <div class="d">每个节点的事件都写 <code>events.jsonl</code>，可 <code>resume_session</code> / <code>fork</code></div>
+      </div>
+      <div class="s-box">
+        <div class="t">Hooks 横切</div>
+        <div class="d"><code>SessionHooks</code> 6 类拦截点：session/tool/llm × before/after</div>
+      </div>
+      <div class="s-box">
+        <div class="t">Sub-agents 横切</div>
+        <div class="d"><code>task</code> 工具触发 → 子 agent 拥有独立 context</div>
+      </div>
+      <div class="s-box">
+        <div class="t">Steering 横切</div>
+        <div class="d"><code>abort()</code> / <code>ask_user</code> / elicitation / <code>/commands</code> 任意节点打断</div>
+      </div>
+    </div>
+
+    <blockquote>
+      <strong>关键认知</strong>：你写业务代码时调的 \"参数\"，并不是配置 SDK；而是把回调挂到 agentic loop 的特定节点上。
+    </blockquote>
+  </div>
+</section>
+
+<!-- 10. 拓扑 -->
+<section class="slide alt" id="s-topo">
+  <div class="slide-num"><strong>10</strong> / 11</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <h2>物理拓扑：<em>Harness 跑在 CLI 子进程里</em></h2>
+      <p class="lead">SDK 本质是 Python 壳 → 内嵌的 <code>copilot</code> CLI 子进程 → 上游模型。Harness 真正住在中间那一格。</p>
+    </div>
+
+    <div class="topo">
+      <div class="box app">
+        <h5>① Python 业务进程</h5>
+        <p>你的代码<br/>
+           <code>CopilotClient()</code><br/>
+           <code>tools / mcp / hooks / commands</code> 等回调</p>
+      </div>
+      <div class="conn"><span class="ar">→</span><span class="lb">spawn (JSON-RPC over stdio)</span></div>
+      <div class="box cli">
+        <h5>② Bundled <code>copilot</code> CLI 子进程</h5>
+        <p>Harness Engine 本体<br/>
+           agentic loop / 内建工具 / 权限调度<br/>
+           <code>~/.copilot/session-state/</code> 落盘</p>
+      </div>
+      <div class="conn"><span class="ar">→</span><span class="lb">HTTPS（azure / openai / ollama）</span></div>
+      <div class="box up">
+        <h5>③ 上游模型</h5>
+        <p>Azure OpenAI<br/>
+           OpenAI 兼容端点<br/>
+           Ollama / BYOK</p>
+      </div>
+    </div>
+
+    <blockquote>
+      <strong>带来的副作用</strong>：① 状态落盘在 CLI 进程一侧，不在你的 Python 进程；
+      ② BYOK 鉴权是 Python → CLI 通过 <code>provider=</code> 传过去的，<strong>每次 resume 都要重传</strong>；
+      ③ <code>session.workspace_path</code> 是 CLI 看到的路径，不一定等于 Python <code>os.getcwd()</code>。
+    </blockquote>
+  </div>
+</section>
+
+<!-- 11. Takeaway -->
+<section class="slide" id="s-take">
+  <div class="slide-num"><strong>11</strong> / 11</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <h2>Takeaway —— 三句话 <em>带走</em></h2>
+    </div>
+    <div class="take">
+      <div class="t-card">
+        <h4>1. SDK = 产品化的 Harness</h4>
+        <p>不要把 GHCP SDK 当 LLM client 用。它把 harness engineering 写死成了产品，
+           你只能在它指定的工位拧螺丝（回调 / 配置）。</p>
+      </div>
+      <div class="t-card">
+        <h4>2. 5 个决策都有对应 API</h4>
+        <p>上下文 → <code>system_message</code>；能力 → <code>tools/mcp/skills</code>；
+           状态 → <code>resume/fork/Fs</code>；危险动作 → <code>on_permission_request</code>；
+           记忆 → <code>infinite_sessions + skills</code>。</p>
+      </div>
+      <div class="t-card">
+        <h4>3. 找不到对应 API ≠ 没产品化</h4>
+        <p>大概率是你站错了抽象层。先翻 <a href="./session-persistence.md">session-persistence</a> /
+           <a href="../README.md">README</a>，再考虑 <code>hooks</code> + RPC 自己接。</p>
+      </div>
+    </div>
+
+    <p style="text-align:center; margin-top: 40px; font-family: -apple-system, sans-serif;
+              font-size: 13px; color: var(--ink-mute); letter-spacing: 0.08em;">
+      回到 · <a href="../README.md" style="color: var(--accent-3);">README</a>
+      &nbsp;·&nbsp; <a href="./session-persistence.md" style="color: var(--accent-3);">session-persistence</a>
+      &nbsp;·&nbsp; <a href="./harness-engineering.html" style="color: var(--accent-3);">harness-engineering（理论篇）</a>
+      &nbsp;·&nbsp; <a href="./harness-mapping.html" style="color: var(--accent-3);">harness-mapping v1（暗色版）</a>
+    </p>
+  </div>
+</section>
+
+<script>
+  const dots = document.querySelectorAll('.dotnav a');
+  const slides = document.querySelectorAll('.slide');
+  const map = {};
+  dots.forEach(d => map[d.getAttribute('href').slice(1)] = d);
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        dots.forEach(d => d.classList.remove('active'));
+        const id = e.target.getAttribute('id');
+        if (map[id]) map[id].classList.add('active');
+      }
+    });
+  }, { threshold: [0.5] });
+  slides.forEach(s => io.observe(s));
+
+  document.addEventListener('keydown', (e) => {
+    const ids = Array.from(slides).map(s => s.id);
+    const cur = ids.findIndex(id => map[id] && map[id].classList.contains('active'));
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'PageDown') {
+      const next = Math.min(cur + 1, ids.length - 1);
+      document.getElementById(ids[next]).scrollIntoView({ behavior: 'smooth' });
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      const prev = Math.max(cur - 1, 0);
+      document.getElementById(ids[prev]).scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,2834 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Harness Engineering：让 AI Agent 稳定交付的系统工程</title>
+<style>
+  :root {
+    --bg: #f5f1ea;
+    --paper: #ffffff;
+    --ink: #1a1a1a;
+    --ink-soft: #4a4a4a;
+    --ink-mute: #8a8a8a;
+    --line: #e2dccf;
+    --accent: #d96941;     /* 橙红 */
+    --accent-2: #2d5f5d;   /* 深松绿 */
+    --accent-3: #4a7cc9;   /* 蓝 */
+    --good: #4a7c59;
+    --bad: #b04a3f;
+    --warn: #d4a574;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  html { scroll-behavior: smooth; scroll-snap-type: y mandatory; overflow-y: scroll; }
+  body {
+    font-family: "Noto Serif SC", "Source Han Serif SC", Georgia, "Times New Roman",
+      -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .sans { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif; }
+
+  /* ===== Top Nav ===== */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 36px;
+    background: rgba(245, 241, 234, 0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    font-size: 13px;
+  }
+  .topbar .brand {
+    font-weight: 800; letter-spacing: 0.18em; font-size: 13px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .topbar .brand .sep { color: var(--ink-mute); font-weight: 400; }
+  .topbar .brand .sub { color: var(--ink-soft); font-weight: 400; letter-spacing: 0.05em; }
+  .topbar .badges { display: flex; gap: 8px; }
+  .topbar .badge {
+    padding: 6px 14px; border-radius: 4px;
+    font-weight: 600; font-size: 12px; letter-spacing: 0.08em;
+  }
+  .topbar .badge.year { background: var(--accent); color: #fff; }
+  .topbar .badge.count { background: var(--accent-3); color: #fff; }
+  .topbar .view-toggle {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all .2s ease;
+  }
+  .topbar .view-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .topbar .view-toggle svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Fullscreen presentation mode */
+  :fullscreen, :-webkit-full-screen { background: var(--bg); }
+  :fullscreen .topbar, :-webkit-full-screen .topbar { display: none; }
+  :fullscreen .slide, :-webkit-full-screen .slide { padding-top: 60px; }
+
+  /* ===== Right side dot nav ===== */
+  .dotnav {
+    position: fixed;
+    right: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: center;
+  }
+  .dotnav a {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--ink-mute);
+    background: transparent;
+    cursor: pointer;
+    transition: all .25s ease;
+    position: relative;
+  }
+  .dotnav a:hover { border-color: var(--ink); transform: scale(1.2); }
+  .dotnav a.active { background: var(--ink); border-color: var(--ink); }
+  .dotnav a::after {
+    content: attr(data-label);
+    position: absolute;
+    right: 22px; top: 50%;
+    transform: translateY(-50%);
+    background: var(--ink); color: #fff;
+    padding: 5px 10px; border-radius: 3px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    font-size: 12px; white-space: nowrap;
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s;
+  }
+  .dotnav a:hover::after { opacity: 1; }
+
+  /* ===== Slides ===== */
+  .slide {
+    min-height: 100vh;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    padding: 90px 80px 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+  }
+  .slide-inner { max-width: 1180px; width: 100%; margin: 0 auto; }
+
+  .slide-num {
+    position: absolute;
+    top: 90px; right: 80px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    color: var(--ink-mute);
+    letter-spacing: 0.12em;
+    text-align: right;
+  }
+  .slide-num strong { color: var(--ink); font-weight: 700; }
+  .slide-num .author {
+    display: block;
+    margin-top: 6px;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    font-size: 12px;
+    color: var(--ink-mute);
+    letter-spacing: 0.08em;
+  }
+  .slide-num .author strong { color: var(--accent); font-weight: 600; }
+
+  /* alternating bg */
+  .slide.alt { background: var(--paper); }
+
+  /* eyebrow */
+  .eyebrow {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    display: inline-flex; align-items: center; gap: 14px;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 24px;
+  }
+  .eyebrow::after {
+    content: ""; display: inline-block; width: 56px; height: 1.5px; background: var(--accent);
+  }
+
+  /* Hero h1 */
+  h1 {
+    font-size: clamp(36px, 6vw, 76px);
+    line-height: 1.1;
+    margin: 0 0 22px;
+    color: var(--ink);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  h1 em { font-style: italic; color: var(--accent); font-weight: 700; font-family: Georgia, "Times New Roman", serif; }
+  h1 .accent2 { color: var(--accent); }
+
+  .subtitle {
+    color: var(--ink-soft);
+    font-size: clamp(15px, 1.3vw, 18px);
+    max-width: 820px;
+    margin: 0;
+    line-height: 1.85;
+  }
+
+  /* tag chips */
+  .chips {
+    margin-top: 36px;
+    display: flex; flex-wrap: wrap; gap: 10px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+  }
+  .chip {
+    padding: 6px 14px; font-size: 13px;
+    border-radius: 4px; font-weight: 600;
+    border: 1px solid;
+  }
+  .chip.c1 { color: var(--accent); border-color: var(--accent); background: rgba(217,105,65,0.08); }
+  .chip.c2 { color: var(--accent-3); border-color: var(--accent-3); background: rgba(74,124,201,0.08); }
+  .chip.c3 { color: var(--accent-2); border-color: var(--accent-2); background: rgba(45,95,93,0.08); }
+  .chip.c4 { color: var(--good); border-color: var(--good); background: rgba(74,124,89,0.08); }
+  .chip.cm { color: var(--ink-mute); border-color: var(--line); background: var(--paper); }
+
+  /* Hero stats row */
+  .hero-stats {
+    margin-top: 56px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--line);
+    padding-top: 36px;
+  }
+  .hero-stat { padding-right: 24px; }
+  .hero-stat .num {
+    font-size: clamp(28px, 3.5vw, 44px);
+    font-weight: 800;
+    color: var(--accent);
+    font-family: Georgia, serif;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .hero-stat .lbl {
+    color: var(--ink-mute); font-size: 14px;
+    margin-top: 8px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+  }
+
+  /* Section heading */
+  .sec-head { margin-bottom: 36px; }
+  .sec-head h2 {
+    font-size: clamp(28px, 4vw, 48px);
+    line-height: 1.15;
+    margin: 0 0 14px;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+  }
+  .sec-head h2 em { font-style: italic; color: var(--accent); font-family: Georgia, serif; font-weight: 700; }
+  .sec-head .lead {
+    color: var(--ink-soft); font-size: 17px;
+    max-width: 880px; margin: 0; font-style: italic;
+  }
+
+  /* Generic grid */
+  .grid { display: grid; gap: 22px; }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+
+  /* Phase cards */
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 28px;
+    transition: all .25s ease;
+  }
+  .card:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 12px 32px rgba(0,0,0,0.06); }
+  .card.alt-bg { background: var(--bg); }
+  .card .when {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--accent); font-weight: 600;
+    font-size: 13px; letter-spacing: 0.1em;
+    margin-bottom: 8px; display: block;
+  }
+  .card h3 { font-size: 22px; margin: 0 0 8px; font-weight: 700; letter-spacing: -0.01em; }
+  .card .core {
+    color: var(--ink); font-weight: 600;
+    margin: 14px 0 10px; padding-left: 12px;
+    border-left: 3px solid var(--warn);
+    font-size: 15px;
+  }
+  .card p { color: var(--ink-soft); margin: 0; font-size: 15px; }
+
+  /* Equation */
+  .eq {
+    display: flex; align-items: center; justify-content: center;
+    gap: 18px; flex-wrap: wrap;
+    padding: 48px 36px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(28px, 4.5vw, 48px);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  .eq .pill { padding: 10px 24px; border-radius: 4px; border: 2px solid var(--ink); background: var(--bg); }
+  .eq .pill.model { color: var(--accent-2); border-color: var(--accent-2); }
+  .eq .pill.harness { color: var(--accent); border-color: var(--accent); }
+  .eq .op { color: var(--ink-mute); font-weight: 400; }
+
+  .four-pillars {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    margin-top: 24px;
+    border: 1px solid var(--line);
+    background: var(--paper); border-radius: 4px; overflow: hidden;
+  }
+  .pillar { text-align: center; padding: 28px 14px; border-right: 1px solid var(--line); }
+  .pillar:last-child { border-right: none; }
+  .pillar .em {
+    font-weight: 800; color: var(--accent);
+    font-size: 20px; letter-spacing: 0.04em;
+    font-family: Georgia, serif;
+  }
+  .pillar .desc {
+    color: var(--ink-soft); font-size: 14px; margin-top: 8px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+  }
+
+  /* Layers */
+  .layers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .layer {
+    position: relative;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px; padding: 26px;
+    transition: all .25s;
+  }
+  .layer:hover { border-color: var(--accent-2); transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.05); }
+  .layer .n {
+    position: absolute; top: 18px; right: 20px;
+    font-family: ui-monospace, monospace;
+    color: #fff; background: var(--accent-2);
+    font-weight: 700; font-size: 12px;
+    padding: 4px 10px; border-radius: 3px; letter-spacing: 0.06em;
+  }
+  .layer h4 { margin: 0 0 10px; font-size: 18px; padding-right: 50px; }
+  .layer p { color: var(--ink-soft); font-size: 14.5px; margin: 0; font-family: -apple-system, "PingFang SC", sans-serif; }
+
+  /* Duo */
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .duo .card.guide { border-left: 4px solid var(--accent); }
+  .duo .card.sensor { border-left: 4px solid var(--accent-2); }
+  .duo ul { margin: 12px 0 0; padding-left: 22px; color: var(--ink-soft); font-size: 15px; font-family: -apple-system, "PingFang SC", sans-serif; }
+  .duo li { margin-bottom: 8px; }
+  .duo .card p { font-family: -apple-system, "PingFang SC", sans-serif; margin-bottom: 6px; }
+  .tag {
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    display: inline-block;
+    font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent-2); font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  /* Cases */
+  .case-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .case {
+    border-radius: 4px; padding: 28px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--accent);
+  }
+  .case:nth-child(2) { border-top-color: var(--accent-3); }
+  .case:nth-child(3) { border-top-color: var(--accent-2); }
+  .case .who {
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    display: inline-block;
+    font-size: 11px; letter-spacing: 0.18em;
+    color: var(--accent); font-weight: 800;
+    text-transform: uppercase; margin-bottom: 10px;
+  }
+  .case:nth-child(2) .who { color: var(--accent-3); }
+  .case:nth-child(3) .who { color: var(--accent-2); }
+  .case h3 { margin: 0 0 14px; font-size: 21px; letter-spacing: -0.01em; }
+  .case ul { margin: 12px 0 0; padding-left: 22px; color: var(--ink-soft); font-size: 14.5px; font-family: -apple-system, "PingFang SC", sans-serif; }
+  .case li { margin-bottom: 7px; }
+  .kpi { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 4px; }
+  .kpi .v {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--bg); border: 1px solid var(--line);
+    color: var(--ink); padding: 4px 10px; border-radius: 3px;
+    font-weight: 600; font-size: 12.5px;
+  }
+
+  /* Bar chart */
+  .bar-card { padding: 16px; border-radius: 3px; background: var(--bg); border: 1px solid var(--line); margin-top: 14px; }
+  .bars { display: flex; align-items: flex-end; gap: 32px; height: 80px; padding: 4px 8px 0; }
+  .bar {
+    flex: 1; border-radius: 2px 2px 0 0;
+    display: flex; align-items: flex-start; justify-content: center;
+    color: #fff; font-weight: 700; padding-top: 6px; font-size: 13px;
+    font-family: ui-monospace, monospace; position: relative;
+  }
+  .bar.before { background: var(--ink-mute); height: 79%; }
+  .bar.after  { background: var(--accent); height: 100%; }
+  .bar small {
+    display: block; position: absolute; bottom: -22px;
+    color: var(--ink-mute); font-weight: 500;
+    font-family: -apple-system, sans-serif; font-size: 12px;
+  }
+
+  /* Quote / pull */
+  blockquote {
+    margin: 24px 0 0;
+    padding: 22px 28px;
+    background: var(--paper);
+    border-left: 4px solid var(--accent);
+    color: var(--ink); font-style: italic;
+    font-size: 17px; line-height: 1.7;
+    border-radius: 0 4px 4px 0;
+  }
+  blockquote cite {
+    display: block; margin-top: 10px;
+    font-style: normal; color: var(--ink-mute);
+    font-size: 13.5px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+  }
+
+  /* Investment */
+  .invest {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    border: 1px solid var(--line); background: var(--paper);
+    border-radius: 4px; overflow: hidden;
+  }
+  .invest .b { padding: 36px 24px; text-align: center; border-right: 1px solid var(--line); }
+  .invest .b:last-child { border-right: none; }
+  .invest .pct { font-size: 44px; font-weight: 800; font-family: Georgia, serif; letter-spacing: -0.02em; line-height: 1; }
+  .invest .h .pct { color: var(--accent); }
+  .invest .c .pct { color: var(--accent-3); }
+  .invest .p .pct { color: var(--warn); }
+  .invest .lbl { color: var(--ink-mute); font-size: 13px; margin-top: 8px; font-family: -apple-system, sans-serif; }
+  .invest .name { font-weight: 600; margin-top: 10px; font-size: 16px; }
+
+  /* Checklist */
+  .checklist {
+    margin-top: 26px;
+    padding: 30px 36px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--good);
+    border-radius: 0 4px 4px 0;
+  }
+  .checklist h3 { margin: 0 0 14px; color: var(--good); font-size: 19px; }
+  .checklist ul { padding-left: 24px; margin: 0; font-family: -apple-system, "PingFang SC", sans-serif; columns: 2; column-gap: 36px; }
+  .checklist li { margin-bottom: 10px; color: var(--ink); font-size: 15px; break-inside: avoid; }
+  .checklist li::marker { color: var(--good); }
+
+  /* Refs */
+  .refs {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 12px 22px;
+    color: var(--ink-soft); font-size: 14px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+  }
+  .refs div {
+    padding: 14px 18px; border-radius: 3px;
+    background: var(--paper); border: 1px solid var(--line);
+    transition: all .2s;
+  }
+  .refs div:hover { border-color: var(--accent); transform: translateX(2px); }
+  .refs span {
+    color: var(--accent); font-family: ui-monospace, monospace;
+    margin-right: 8px; font-weight: 700;
+  }
+
+  .end-mark {
+    margin-top: 50px; text-align: center;
+    color: var(--ink-mute); font-size: 13px;
+    font-family: -apple-system, sans-serif;
+    letter-spacing: 0.2em;
+  }
+  .end-mark::before, .end-mark::after {
+    content: "—"; margin: 0 14px; color: var(--line);
+  }
+
+  .arrow-from { color: var(--bad); font-weight: 600; }
+  .arrow-to { color: var(--good); font-weight: 600; }
+
+  /* TOC */
+  .toc {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px 32px;
+    margin-top: 8px;
+  }
+  .toc-item {
+    display: flex; align-items: baseline; gap: 18px;
+    padding: 18px 22px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    text-decoration: none;
+    color: inherit;
+    transition: all .2s ease;
+    position: relative;
+  }
+  .toc-item:hover {
+    border-color: var(--accent);
+    transform: translateX(4px);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.05);
+  }
+  .toc-item .num {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px; font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    min-width: 36px;
+  }
+  .toc-item .body { flex: 1; }
+  .toc-item .ttl {
+    font-size: 19px; font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+  }
+  .toc-item .desc {
+    color: var(--ink-mute); font-size: 13.5px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    margin: 0; line-height: 1.5;
+  }
+  .toc-item .arrow {
+    color: var(--ink-mute); font-size: 16px;
+    transition: transform .2s, color .2s;
+  }
+  .toc-item:hover .arrow { color: var(--accent); transform: translateX(4px); }
+  @media (max-width: 768px) {
+    .toc { grid-template-columns: 1fr; }
+  }
+
+  /* Memory chapter */
+  .mem-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .mem-col {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 22px;
+    border-top: 3px solid var(--accent);
+  }
+  .mem-col:nth-child(2) { border-top-color: var(--accent-3); }
+  .mem-col:nth-child(3) { border-top-color: var(--accent-2); }
+  .mem-col h4 {
+    margin: 0 0 4px; font-size: 17px;
+    letter-spacing: -0.01em;
+  }
+  .mem-col .en {
+    font-family: Georgia, serif;
+    color: var(--ink-mute); font-style: italic;
+    font-size: 13px; margin-bottom: 14px;
+    display: block;
+  }
+  .mem-col .row {
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--line);
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    font-size: 14px;
+  }
+  .mem-col .row:last-child { border-bottom: none; }
+  .mem-col .row strong { color: var(--accent); font-weight: 700; display: block; margin-bottom: 2px; font-size: 14.5px; }
+  .mem-col:nth-child(2) .row strong { color: var(--accent-3); }
+  .mem-col:nth-child(3) .row strong { color: var(--accent-2); }
+  .mem-col .row span { color: var(--ink-soft); }
+
+  /* Long-term memory types */
+  .ltm { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 18px; }
+  .ltm-card {
+    padding: 22px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    transition: all .2s;
+  }
+  .ltm-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .ltm-card .lat { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.08em; font-family: Georgia, serif; font-style: italic; }
+  .ltm-card h4 { margin: 4px 0 10px; font-size: 18px; }
+  .ltm-card p { color: var(--ink-soft); font-size: 14px; margin: 0; font-family: -apple-system, "PingFang SC", sans-serif; }
+
+  /* Framework table */
+  .fw-table {
+    width: 100%; border-collapse: collapse;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px; overflow: hidden;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    font-size: 14.5px;
+  }
+  .fw-table th, .fw-table td {
+    padding: 14px 18px;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+  }
+  .fw-table thead th {
+    background: var(--bg);
+    color: var(--ink-mute);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .fw-table tbody tr:last-child td { border-bottom: none; }
+  .fw-table tbody tr:hover { background: var(--bg); }
+  .fw-table .name { font-weight: 700; color: var(--ink); }
+  .fw-table .stars { font-family: ui-monospace, monospace; color: var(--accent); font-weight: 700; }
+
+  /* Score bars */
+  .scores { display: grid; gap: 10px; margin-top: 10px; font-family: -apple-system, "PingFang SC", sans-serif; }
+  .score-row {
+    display: grid;
+    grid-template-columns: 130px 1fr 60px;
+    align-items: center;
+    gap: 14px;
+    font-size: 13.5px;
+  }
+  .score-row .nm { color: var(--ink-soft); }
+  .score-row .track {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    height: 16px;
+    overflow: hidden;
+  }
+  .score-row .fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--warn));
+    border-radius: 2px;
+  }
+  .score-row .val {
+    font-family: ui-monospace, monospace;
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 13px;
+    text-align: right;
+  }
+
+  /* Cloud services */
+  .cloud { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .cloud-card {
+    padding: 18px 20px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    border-top: 3px solid var(--accent-3);
+  }
+  .cloud-card h5 {
+    margin: 0 0 4px;
+    font-size: 14.5px;
+    color: var(--accent-3);
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    letter-spacing: 0.04em;
+  }
+  .cloud-card .badge-mini {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    background: var(--bg);
+    color: var(--ink-mute);
+    margin-bottom: 8px;
+    font-family: ui-monospace, monospace;
+  }
+  .cloud-card p { margin: 0; font-size: 13.5px; color: var(--ink-soft); font-family: -apple-system, "PingFang SC", sans-serif; }
+
+  @media (max-width: 1024px) {
+    .mem-grid3, .ltm, .cloud { grid-template-columns: 1fr; }
+    .score-row { grid-template-columns: 100px 1fr 50px; }
+  }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .slide { padding: 90px 40px 50px; }
+    .slide-num { right: 40px; }
+    .dotnav { right: 14px; }
+    .hero-stats { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+    .g3, .layers, .case-grid, .invest, .four-pillars { grid-template-columns: repeat(2, 1fr); }
+    .duo, .g2 { grid-template-columns: 1fr; }
+    .pillar, .invest .b { border-right: none; border-bottom: 1px solid var(--line); }
+    .checklist ul { columns: 1; }
+  }
+  @media (max-width: 640px) {
+    html { scroll-snap-type: none; }
+    .slide { padding: 90px 22px 40px; min-height: auto; }
+    .slide-num { display: none; }
+    .topbar { padding: 12px 16px; }
+    .topbar .brand .sub { display: none; }
+    .dotnav { display: none; }
+    .g3, .layers, .case-grid, .invest, .four-pillars, .hero-stats, .refs { grid-template-columns: 1fr; }
+    .to-top { right: 16px; bottom: 16px; width: 40px; height: 40px; }
+  }
+
+  /* Hermes layer-mapping table */
+  .hermes-map {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    font-size: 14px;
+  }
+  .hermes-map th, .hermes-map td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .hermes-map thead th {
+    background: var(--bg);
+    color: var(--ink-mute);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .hermes-map tbody tr:last-child td { border-bottom: none; }
+  .hermes-map tbody tr:hover { background: var(--bg); }
+  .hermes-map .lyr {
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent-2);
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    display: inline-block;
+  }
+  .hermes-map .layer-name { color: var(--ink); font-weight: 700; white-space: nowrap; }
+  .hermes-map .impl { color: var(--ink-soft); }
+  .hermes-map .impl strong { color: var(--accent); font-weight: 700; }
+
+  .hermes-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-top: 22px;
+  }
+  .hermes-stat {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 14px 18px;
+  }
+  .hermes-stat .v {
+    font-family: Georgia, serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+  }
+  .hermes-stat .l {
+    color: var(--ink-soft);
+    font-size: 12.5px;
+    margin-top: 4px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+  }
+
+  @media (max-width: 1024px) {
+    .hermes-stats { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Hermes deep-dive blocks */
+  .hermes-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-top: 14px;
+  }
+  .hermes-flow .step {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent-2);
+    border-radius: 4px;
+    padding: 12px 18px;
+    position: relative;
+  }
+  .hermes-flow .step + .step { margin-top: 8px; }
+  .hermes-flow .step::before {
+    content: "↓";
+    position: absolute;
+    left: 50%;
+    top: -16px;
+    color: var(--accent-2);
+    font-weight: 700;
+    font-size: 14px;
+    transform: translateX(-50%);
+  }
+  .hermes-flow .step:first-child::before { display: none; }
+  .hermes-flow .step .tier {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--accent-2);
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .hermes-flow .step .name {
+    font-weight: 700;
+    color: var(--ink);
+    font-size: 15px;
+    margin: 2px 0 4px;
+  }
+  .hermes-flow .step .det {
+    font-size: 13px;
+    color: var(--ink-soft);
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    line-height: 1.55;
+  }
+  .hermes-flow .step .det strong { color: var(--accent); }
+
+  .hermes-code {
+    background: #1f1d1a;
+    color: #e8e2d5;
+    border-radius: 5px;
+    padding: 16px 20px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.75;
+    margin: 12px 0;
+    overflow-x: auto;
+    white-space: pre;
+    tab-size: 2;
+  }
+  .hermes-code .com { color: #8a8273; font-style: italic; }
+  .hermes-code .kw { color: #d96941; }
+  .hermes-code .str { color: #9bb88f; }
+  .hermes-code .acc { color: #e8c170; }
+
+  .hermes-two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 22px;
+    margin-top: 14px;
+  }
+  .hermes-two h4 {
+    font-size: 16px;
+    margin: 0 0 8px;
+    color: var(--ink);
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 4px;
+    display: inline-block;
+  }
+  .hermes-two h4.weak { border-color: var(--accent); color: var(--accent); }
+  .hermes-two h4.strong { border-color: var(--accent-2); color: var(--accent-2); }
+  .hermes-two ul {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    line-height: 1.75;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+  }
+  .hermes-two li { margin-bottom: 6px; }
+  .hermes-two li strong { color: var(--ink); font-weight: 700; }
+
+  @media (max-width: 1024px) {
+    .hermes-two { grid-template-columns: 1fr; }
+  }
+
+  /* Back to top button */
+  .to-top {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: rgba(60, 55, 50, 0.18);
+    color: rgba(255,255,255,0.85);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition: opacity .25s ease, transform .25s ease, background .2s ease;
+    z-index: 60;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+  }
+  .to-top.show { opacity: 0.55; pointer-events: auto; transform: translateY(0); }
+  .to-top.show:hover { opacity: 1; background: rgba(60, 55, 50, 0.45); }
+  .to-top svg { width: 18px; height: 18px; stroke: var(--accent); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<header class="topbar sans">
+  <div class="brand">
+    <span>HARNESS · ENG</span>
+    <span class="sep">|</span>
+    <span class="sub">让 AI Agent 稳定交付的系统工程</span>
+  </div>
+  <div class="badges">
+    <button class="view-toggle" id="viewToggle" title="进入演示模式 (F / Esc 退出)">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"/></svg>
+      <span id="viewToggleLabel">演示</span>
+    </button>
+    <span class="badge year">2026 · 4</span>
+    <span class="badge count">9 节</span>
+  </div>
+</header>
+
+<!-- Right dot nav -->
+<nav class="dotnav" id="dotnav">
+  <a href="#s1" data-label="封面" class="active"></a>
+  <a href="#s-toc" data-label="目录"></a>
+  <a href="#s2" data-label="范式跃迁"></a>
+  <a href="#s3" data-label="什么是 Harness"></a>
+  <a href="#s4" data-label="六层架构"></a>
+  <a href="#s4-v2" data-label="精细化分层 v2"></a>
+  <a href="#s-anat0" data-label="五决策 · 立场"></a>
+  <a href="#s-anat1" data-label="决策① · 上下文"></a>
+  <a href="#s-anat1b" data-label="决策① · 历史与缓存"></a>
+  <a href="#s-anat1c" data-label="决策① · Memory ABC"></a>
+  <a href="#s-anat2" data-label="决策② · 能力暴露"></a>
+  <a href="#s-anat3" data-label="决策③ · 状态持久化"></a>
+  <a href="#s-anat4" data-label="决策④ · 危险动作"></a>
+  <a href="#s-mem1" data-label="决策⑤ · 写读忘"></a>
+  <a href="#s-mem1b" data-label="决策⑤ · 选型矩阵"></a>
+  <a href="#s-mem2" data-label="决策⑤ · 框架基准"></a>
+  <a href="#s-mem2b" data-label="决策⑤ · 实践反模式"></a>
+  <a href="#s-walk1" data-label="走查 · 场景与时间线"></a>
+  <a href="#s-walk2" data-label="走查 · ①Prompt+②Tools"></a>
+  <a href="#s-walk3" data-label="走查 · ③State+④HITL"></a>
+  <a href="#s-walk4" data-label="走查 · ⑤Memory 复用"></a>
+  <a href="#s6" data-label="实战案例 · 大厂"></a>
+  <a href="#s-hermes" data-label="Hermes · 总览"></a>
+  <a href="#s-hermes-strong1" data-label="Hermes · L1+L2"></a>
+  <a href="#s-hermes-mem" data-label="Hermes · 五层记忆"></a>
+  <a href="#s-hermes-mem-demo" data-label="Hermes · 记忆实例"></a>
+  <a href="#s-hermes-cache" data-label="Hermes · 工程哲学"></a>
+  <a href="#s-hermes-gap" data-label="Hermes · 三大短板"></a>
+  <a href="#s-pcb1" data-label="PCB Agent · 总览"></a>
+  <a href="#s-pcb2" data-label="PCB Agent · 工程取舍"></a>
+  <a href="#s8" data-label="行动建议"></a>
+  <a href="#s9" data-label="参考资料"></a>
+</nav>
+
+<!-- Slide 1: Hero -->
+<section class="slide" id="s1">
+  <div class="slide-num"><span><strong>01</strong> / 32</span><span class="author">Author: <strong>Lei Xu</strong></span></div>
+  <div class="slide-inner">
+    <span class="eyebrow">Harness Engineering · Research Brief</span>
+    <h1>大模型决定上限<br/><em>Harness</em> <span class="accent2">决定能否落地</span></h1>
+    <p class="subtitle">从 Prompt 到 Context 再到 Harness——AI 工程经历了从「把话说清楚」到「把信息给对」再到「让执行跑稳」的三次范式跃迁。本研究合成 OpenAI / Anthropic / LangChain 等团队的实战经验，梳理 Agent 稳定交付的系统工程。</p>
+
+    <div class="chips">
+      <span class="chip c1">提示词工程</span>
+      <span class="chip c2">上下文工程</span>
+      <span class="chip c3">Harness Engineering</span>
+      <span class="chip c4">智能体可靠性</span>
+      <span class="chip cm">AGENTS.md</span>
+      <span class="chip cm">自校验回路</span>
+      <span class="chip cm">可观测性</span>
+      <span class="chip cm">多智能体协作</span>
+    </div>
+
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num">95%+</div><div class="lbl">同模型同 Prompt 的成功率上限</div></div>
+      <div class="hero-stat"><div class="num">100 万</div><div class="lbl">Codex Agent 自主产出代码行</div></div>
+      <div class="hero-stat"><div class="num">+13.7<span style="font-size:0.6em">pp</span></div><div class="lbl">仅调 Harness 带来的性能提升</div></div>
+      <div class="hero-stat"><div class="num">10×</div><div class="lbl">相比手写代码的开发提速</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 2: TOC -->
+<section class="slide alt" id="s-toc">
+  <div class="slide-num"><strong>02</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">CONTENTS · 目录</span>
+      <h2>共 <em>十章</em>，从范式到落地</h2>
+      <p class="lead">完整的 Agent 稳定性系统工程地图——从概念定义到架构机制，再到记忆系统、实战案例与可执行的行动建议。</p>
+    </div>
+
+    <div class="toc">
+      <a class="toc-item" href="#s2">
+        <span class="num">01</span>
+        <span class="body">
+          <p class="ttl">三次范式跃迁</p>
+          <p class="desc">Prompt → Context → Harness：AI 工程的边界扩张</p>
+        </span>
+        <span class="arrow">→</span>
+      </a>
+      <a class="toc-item" href="#s3">
+        <span class="num">02</span>
+        <span class="body">
+          <p class="ttl">什么是 Harness</p>
+          <p class="desc">Agent = Model + Harness 的核心定义与四大职责</p>
+        </span>
+        <span class="arrow">→</span>
+      </a>
+      <a class="toc-item" href="#s4">
+        <span class="num">03</span>
+        <span class="body">
+          <p class="ttl">六层架构（含精细化分层 v2）</p>
+          <p class="desc">L1 上下文 / L2 工具 / L3 编排 / L4 记忆 / L5 评估观测 / L6 约束恢复；L3 与 L5 可进一步拆分为 8 层工程视图</p>
+        </span>
+        <span class="arrow">→</span>
+      </a>
+      <a class="toc-item" href="#s-anat0">
+        <span class="num">04</span>
+        <span class="body">
+          <p class="ttl">五个工程决策</p>
+          <p class="desc">工程师视角：①上下文 pipeline · ②能力暴露 · ③状态持久化 · ④危险动作 · ⑤记忆系统（4 个子决策 · 3×3 选型 · LoCoMo 基准）</p>
+        </span>
+        <span class="arrow">→</span>
+      </a>
+      <a class="toc-item" href="#s-walk1">
+        <span class="num">05</span>
+        <span class="body">
+          <p class="ttl">走查 · On-Call Agent 模拟案例</p>
+          <p class="desc">用一个事故响应场景把五个决策从抽象落到具体——告警 → 上下文拼装 → 工具暴露 → 状态接力 → 写动作护栏 → 记忆复用</p>
+        </span>
+        <span class="arrow">→</span>
+      </a>
+      <a class="toc-item" href="#s6">
+        <span class="num">06</span>
+        <span class="body">
+          <p class="ttl">实战案例 · 多家厂商</p>
+          <p class="desc">OpenAI / LangChain / Anthropic 的 Harness 工程实践概览</p>
+        </span>
+        <span class="arrow">→</span>
+      </a>
+      <a class="toc-item" href="#s8">
+        <span class="num">07</span>
+        <span class="body">
+          <p class="ttl">角色转变、总结与行动建议</p>
+          <p class="desc">从写代码到设计 Agent 运行环境 + 投入比例倒置与系统自检清单</p>
+        </span>
+        <span class="arrow">→</span>
+      </a>
+      <a class="toc-item" href="#s9">
+        <span class="num">08</span>
+        <span class="body">
+          <p class="ttl">参考资料</p>
+          <p class="desc">来自 OpenAI / Anthropic / Princeton 等的研究</p>
+        </span>
+        <span class="arrow">→</span>
+      </a>
+      <a class="toc-item" href="#s-hermes" style="border-left: 3px solid var(--accent-2);">
+        <span class="num" style="color: var(--accent-2);">专题</span>
+        <span class="body">
+          <p class="ttl">Hermes Agent · 深度剖析</p>
+          <p class="desc">六层架构完整映射 · L1+L2 工程细节 · 五层记忆 · 不破坏前缀缓存 · 三大短板与补法</p>
+        </span>
+        <span class="arrow">→</span>
+      </a>
+      <a class="toc-item" href="#s-pcb1" style="border-left: 3px solid var(--accent-3);">
+        <span class="num" style="color: var(--accent-3);">专题</span>
+        <span class="body">
+          <p class="ttl">PCB Design Agent · 实战演练 <span style="font-size:11px;color:var(--warn);background:rgba(212,165,116,0.15);padding:1px 8px;border-radius:3px;margin-left:6px;letter-spacing:0.05em;">WIP</span></p>
+          <p class="desc">五技能调度引擎 · 三模式回答 · 单次规划 + 批处理 + 有限并行 · DCDC 冲击电流实例</p>
+        </span>
+        <span class="arrow">→</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 3: 三次范式跃迁 -->
+<section class="slide" id="s2">
+  <div class="slide-num"><strong>03</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">01 · OVERVIEW</span>
+      <h2>AI 工程的<em>三次范式跃迁</em></h2>
+      <p class="lead">从「把话说清楚」到「把信息给对」再到「让执行跑稳」——每一层的边界都在向外扩张，后者包含前者。</p>
+    </div>
+
+    <div class="grid g3">
+      <div class="card">
+        <span class="when">2022 — 2024</span>
+        <h3>Prompt Engineering</h3>
+        <div class="core">塑造模型的局部概率空间</div>
+        <p>核心是语言设计：角色设定、风格约束、Few-shot 示例、输出格式引导。擅长短链路任务约束，不擅长弥补缺失知识。</p>
+      </div>
+      <div class="card">
+        <span class="when">2025</span>
+        <h3>Context Engineering</h3>
+        <div class="core">解决信息供给问题</div>
+        <p>RAG 检索链路、文档切块与排序、历史对话摘要、工具返回裁剪、渐进式披露。核心是「在合适的时机把正确的信息送进去」。</p>
+      </div>
+      <div class="card">
+        <span class="when">2026</span>
+        <h3>Harness Engineering</h3>
+        <div class="core">解决执行稳定性</div>
+        <p>当模型开始连续行动，谁来监督、约束和纠偏？Prompt 只是 Context 的一部分，Context 只是 Harness 的一部分。</p>
+      </div>
+    </div>
+
+    <blockquote>
+      关键转折：2025–2026 年 Agent 开始在生产环境中自主运行数小时、链式调用数十个工具、跨多个会话做出真实决策——暴露了前两个范式的结构性缺陷。
+    </blockquote>
+  </div>
+</section>
+
+<!-- Slide 4: Definition -->
+<section class="slide alt" id="s3">
+  <div class="slide-num"><strong>04</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">02 · DEFINITION</span>
+      <h2>什么是 <em>Harness</em>？</h2>
+      <p class="lead">Harness 原意为缰绳和马具——在 AI 系统中，它代表除模型以外所有决定 Agent 能否稳定交付的基础设施。</p>
+    </div>
+
+    <div class="eq">
+      <span class="pill">Agent</span>
+      <span class="op">=</span>
+      <span class="pill model">Model</span>
+      <span class="op">+</span>
+      <span class="pill harness">Harness</span>
+    </div>
+
+    <div class="four-pillars">
+      <div class="pillar"><div class="em">Constrain</div><div class="desc">约束能做什么</div></div>
+      <div class="pillar"><div class="em">Inform</div><div class="desc">告知该做什么</div></div>
+      <div class="pillar"><div class="em">Verify</div><div class="desc">验证做对没有</div></div>
+      <div class="pillar"><div class="em">Correct</div><div class="desc">纠正出错行为</div></div>
+    </div>
+
+    <p style="color: var(--ink-soft); margin-top: 28px; font-style: italic; text-align:center; font-size: 16px;">
+      <strong style="color:var(--ink)">马 (Model)</strong> 强大但不知方向　·　
+      <strong style="color:var(--ink)">马具 (Harness)</strong> 是缰绳鞍具嚼子　·　
+      <strong style="color:var(--ink)">骑手 (Human)</strong> 提供方向，不亲自跑
+    </p>
+  </div>
+</section>
+
+<!-- Slide 5: 六层架构 -->
+<section class="slide" id="s4">
+  <div class="slide-num"><strong>05</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">03 · ARCHITECTURE</span>
+      <h2>Harness <em>六层架构</em></h2>
+      <p class="lead">从信息输入到执行编排，再到评估恢复，构成完整的 Agent 运行保障体系。本图为本文综合提炼的工程视图，各家实践在分层上略有差异。</p>
+    </div>
+
+    <div class="layers">
+      <div class="layer"><span class="n">L1</span><h4>上下文管理</h4><p>角色目标定义、信息裁剪选择（相关性优先）、结构化分层组织。</p></div>
+      <div class="layer"><span class="n">L2</span><h4>工具系统</h4><p>选择合适工具集、控制调用时机、结果回注与裁剪。</p></div>
+      <div class="layer"><span class="n">L3</span><h4>执行编排</h4><p>理解目标 → 判断信息 → 补充检索 → 分析生成 → 检查修正。</p></div>
+      <div class="layer"><span class="n">L4</span><h4>记忆与状态</h4><p>区分当前任务状态、会话中间结果、长期记忆与用户偏好。</p></div>
+      <div class="layer"><span class="n">L5</span><h4>评估与观测</h4><p>输出验收、环境验证、自动测试、日志指标、错误归因。</p></div>
+      <div class="layer"><span class="n">L6</span><h4>约束校验与恢复</h4><p>约束边界、输出前后检查、失败后重试 / 切路径 / 回滚。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 5b: 精细化分层 v2 -->
+<section class="slide alt" id="s4-v2">
+  <div class="slide-num"><strong>06</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">03+ · ENGINEERING VIEW</span>
+      <h2>精细化分层：<em>从六层到八层</em></h2>
+      <p class="lead">当六层模型落到生产代码时，<strong>L3</strong> 与 <strong>L5</strong> 各自承载了两件成熟度差异很大的事——合并描述会让评估失真。本图把这两层拆开，得到一组每层都能<strong>独立打分</strong>的 8 层视图。</p>
+    </div>
+
+    <div class="layers" style="grid-template-columns: repeat(4, 1fr);">
+      <div class="layer"><span class="n">L1</span><h4>上下文管理</h4><p style="font-size:13px;">角色 / 信息裁剪 / 结构化分层</p></div>
+      <div class="layer"><span class="n">L2</span><h4>工具系统</h4><p style="font-size:13px;">工具集 / 时机 / 回注裁剪</p></div>
+
+      <div class="layer" style="border-color: var(--accent);"><span class="n" style="color:var(--accent);">L3a</span><h4>推理编排<span style="font-size:11px; color:var(--accent); margin-left:6px; font-weight:500;">[拆自 L3]</span></h4><p style="font-size:13px;">理解目标 / 判断 / 检索 / 反思 / 重规划——<strong>Agent 的"思考节奏"</strong></p></div>
+      <div class="layer" style="border-color: var(--accent);"><span class="n" style="color:var(--accent);">L3b</span><h4>运行时调度<span style="font-size:11px; color:var(--accent); margin-left:6px; font-weight:500;">[拆自 L3]</span></h4><p style="font-size:13px;">预算 / 并发 / Provider 路由 / Fallback——<strong>Agent 的"执行底盘"</strong></p></div>
+
+      <div class="layer"><span class="n">L4</span><h4>记忆与状态</h4><p style="font-size:13px;">短期 / 长期 / 用户偏好</p></div>
+
+      <div class="layer" style="border-color: var(--accent-2);"><span class="n" style="background:var(--accent-3, #4a7cc9);">L5a</span><h4>观测与审计<span style="font-size:11px; color:var(--accent-2); margin-left:6px; font-weight:500;">[拆自 L5 · 实时]</span></h4><p style="font-size:13px;">日志 / 指标 / Trace / Cost——<strong>被动记录，不阻塞 Agent</strong></p></div>
+      <div class="layer" style="border-color: var(--accent-2);"><span class="n" style="background:var(--accent-3, #4a7cc9);">L5b</span><h4>评估与验收<span style="font-size:11px; color:var(--accent-2); margin-left:6px; font-weight:500;">[拆自 L5 · 在线/离线]</span></h4><p style="font-size:13px;">Reward / Verifier / Benchmark / LLM-judge——<strong>主动判定，可影响行为</strong></p></div>
+
+      <div class="layer"><span class="n">L6</span><h4>约束与恢复</h4><p style="font-size:13px;">边界检查 / 重试 / 回滚</p></div>
+    </div>
+
+    <div style="margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+      <div style="background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 4px; padding: 12px 16px;">
+        <div style="font-weight: 700; color: var(--accent); font-size: 13px; margin-bottom: 4px;">为什么拆 L3</div>
+        <div style="font-size: 13px; color: var(--ink-soft); line-height: 1.65; font-family: -apple-system, 'PingFang SC', sans-serif;">
+          <strong>L3a 推理编排</strong>是科学问题（"思考方式对不对"）；<strong>L3b 运行时调度</strong>是工程问题（"预算够不够、能不能容错"）。两者的成熟度通常差一个数量级——Hermes 的 L3b 是工业级，L3a 仍是线性 ReAct。
+        </div>
+      </div>
+      <div style="background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--accent-2); border-radius: 4px; padding: 12px 16px;">
+        <div style="font-weight: 700; color: var(--accent-2); font-size: 13px; margin-bottom: 4px;">为什么拆 L5</div>
+        <div style="font-size: 13px; color: var(--ink-soft); line-height: 1.65; font-family: -apple-system, 'PingFang SC', sans-serif;">
+          <strong>L5a 观测必须实时</strong>，错过即丢；<strong>L5b 评估可异步</strong>，离线随时重算。它们的阻塞性、失败成本、技术栈都不同，合在一层意味着"L5 评分"永远是两个数字。
+        </div>
+      </div>
+    </div>
+
+    <p style="font-size: 12.5px; color: var(--ink-mute); margin-top: 14px; font-family: -apple-system, 'PingFang SC', sans-serif;">
+      <strong style="color:var(--ink-soft);">备注：</strong>另有一层 <strong>L0 接口与协作边界</strong>（HCI / 输出 schema / 人机切换 / 多平台集成）在严肃生产场景中也开始独立成层。本文为聚焦 Harness 内部架构，未纳入正图。
+    </p>
+  </div>
+</section>
+
+<!-- Anatomy chapter (5 slides) — Engineering Decisions view -->
+<section class="slide" id="s-anat0">
+  <div class="slide-num"><strong>07</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">05 · 工程决策 · 立场</span>
+      <h2>看 harness 的<em>另一种视角</em>：<br>从组件清单到 <em>五个工程决策</em></h2>
+      <p class="lead">第 03 章的"六层架构"是<strong>架构师视角</strong>——回答 <em>harness 由什么组成</em>。本章换<strong>工程师视角</strong>：不再列盒子，而是问 <em>搭一个 harness 时必须做的选</em>。两者正交：六层是名词，五决策是动词。</p>
+    </div>
+
+    <div class="grid g2" style="gap: 18px; margin-bottom: 18px;">
+      <div class="card alt-bg" style="border-left: 4px solid var(--ink-mute);">
+        <span class="tag" style="color: var(--ink-mute);">视图 A · 架构师视角</span>
+        <h3 style="font-size:18px;">六层架构 / 名词</h3>
+        <p style="font-family:-apple-system,'PingFang SC',sans-serif;font-size:14px;color:var(--ink-soft);">L1 上下文 · L2 工具 · L3 编排 · L4 记忆 · L5 评估观测 · L6 约束恢复——回答 <em>harness 由什么组成</em>。</p>
+        <p style="margin-top:10px;color:var(--ink-mute);font-style:italic;font-size:13px;font-family:-apple-system,'PingFang SC',sans-serif;">适合：理解整体结构、跨子系统协作。</p>
+      </div>
+      <div class="card" style="border-left: 4px solid var(--accent);">
+        <span class="tag" style="color: var(--accent);">视图 B · 工程师视角（本章）</span>
+        <h3 style="font-size:18px;">五个决策 / 动词</h3>
+        <p style="font-family:-apple-system,'PingFang SC',sans-serif;font-size:14px;color:var(--ink-soft);">①上下文怎么进 prompt · ②能力怎么暴露 · ③状态怎么持久化 · ④危险动作怎么管 · ⑤记忆怎么沉淀</p>
+        <p style="margin-top:10px;color:var(--accent-2);font-style:italic;font-size:13px;font-family:-apple-system,'PingFang SC',sans-serif;">适合：每个决策有看得见的实物 + 多种可选做法，跨厂商可对比、有 trade-off、能被团队讨论。</p>
+      </div>
+    </div>
+
+    <div class="four-pillars" style="grid-template-columns: repeat(5, 1fr);">
+      <div class="pillar"><div class="em">① CONTEXT</div><div class="desc">上下文怎么进 prompt<br><span style="color:var(--ink-mute);font-size:12px;">pipeline · 不是字符串</span></div></div>
+      <div class="pillar"><div class="em">② CAPABILITY</div><div class="desc">能力怎么暴露<br><span style="color:var(--ink-mute);font-size:12px;">tool / md / sub-agent</span></div></div>
+      <div class="pillar"><div class="em">③ STATE</div><div class="desc">状态怎么持久化<br><span style="color:var(--ink-mute);font-size:12px;">JSONL · resume exact</span></div></div>
+      <div class="pillar"><div class="em">④ SAFETY</div><div class="desc">危险动作怎么管<br><span style="color:var(--ink-mute);font-size:12px;">规则 + 钩子 + HITL</span></div></div>
+      <div class="pillar"><div class="em">⑤ MEMORY</div><div class="desc">记忆怎么沉淀<br><span style="color:var(--ink-mute);font-size:12px;">写 / 读 / 忘 · 选型</span></div></div>
+    </div>
+
+    <blockquote style="margin-top: 18px;">
+      <strong>STATE 与 MEMORY 是亲戚：</strong>STATE 是<em>会话内</em>的忠实事件流（append-only · resume），MEMORY 是<em>跨会话</em>的浓缩沉淀（dedup · forget）。前者是后者的原料——闲时把 STATE 反思成 MEMORY，下次启动再注回 prompt。
+    </blockquote>
+  </div>
+</section>
+
+<section class="slide alt" id="s-anat1">
+  <div class="slide-num"><strong>08</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">05 · 决策 ① · CONTEXT</span>
+      <h2>上下文 = <em>一条 pipeline</em>，不是一个字符串</h2>
+      <p class="lead">最容易低估的设计。System prompt 不是写一遍就完事，而是<strong>每轮重新拼装</strong>：从静态骨架到动态边界，从目录游走到运行时配置。哪些静态、哪些每轮重算、12K token 预算分给谁——这是工程师必须自己回答的。</p>
+    </div>
+
+    <div class="grid g2" style="gap: 22px; margin-bottom: 18px;">
+      <div>
+        <h3 style="font-size: 17px; margin: 0 0 12px; letter-spacing: -0.01em;">实物 · system prompt pipeline</h3>
+        <div style="background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.85; color: var(--ink-soft);">
+          <div style="color: var(--accent); font-weight: 700; letter-spacing: 0.1em; font-size: 11px; margin-bottom: 10px;">SCAFFOLD · static</div>
+          <div>"You are an interactive agent..."</div>
+          <div style="margin: 14px 0; padding: 6px 0; border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); color: var(--accent); text-align: center; font-size: 11px; letter-spacing: 0.12em;">↓ DYNAMIC BOUNDARY ↓</div>
+          <div><span style="color: var(--accent-3); font-weight: 700;">DYN</span> # Environment <span style="color: var(--ink-mute); float: right;">os · cwd · date</span></div>
+          <div><span style="color: var(--accent-3); font-weight: 700;">DYN</span> # Project <span style="color: var(--ink-mute); float: right;">git status · last 5 commits</span></div>
+          <div><span style="color: var(--accent-3); font-weight: 700;">DYN</span> # Agent instructions <span style="color: var(--ink-mute); float: right;">CLAUDE.md · AGENTS.md</span></div>
+          <div><span style="color: var(--accent-3); font-weight: 700;">DYN</span> # Runtime config <span style="color: var(--ink-mute); float: right;">tools · permissions · hooks</span></div>
+          <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--ink-mute); font-size: 11px;">total ≈ 12K tokens · 每轮重算</div>
+        </div>
+        <p style="margin-top: 10px; color: var(--ink-mute); font-size: 12px; font-family: -apple-system, 'PingFang SC', sans-serif; font-style: italic;">额外：directory walk 从 cwd 向上回溯 — <code>./CLAUDE.md</code> · <code>./AGENTS.md</code> · <code>~/.config/instructions.md</code> 逐级叠加。</p>
+      </div>
+
+      <div>
+        <h3 style="font-size: 17px; margin: 0 0 12px; letter-spacing: -0.01em;">业界做法对比</h3>
+        <table class="fw-table">
+          <thead><tr><th>厂商</th><th>静态骨架</th><th>动态注入</th></tr></thead>
+          <tbody>
+            <tr><td class="name">Claude Code</td><td>系统级 scaffold</td><td>directory walk + git 状态</td></tr>
+            <tr><td class="name">Cursor</td><td>内嵌 + Rules</td><td><code>.cursorrules</code> + 文件上下文</td></tr>
+            <tr><td class="name">Aider</td><td>极简 scaffold</td><td>repo map（按 PageRank 选）</td></tr>
+            <tr><td class="name">Cline</td><td>scaffold + 模式</td><td>MCP server 工具描述</td></tr>
+            <tr><td class="name">Codex CLI</td><td>OpenAI 模板</td><td><code>AGENTS.md</code> + 环境快照</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; margin: 18px 0 8px; letter-spacing: 0.06em; color: var(--ink-mute); text-transform: uppercase;">关键决策点</h3>
+        <ul style="margin: 0; padding-left: 20px; color: var(--ink-soft); font-family: -apple-system, 'PingFang SC', sans-serif; font-size: 13.5px; line-height: 1.75;">
+          <li><strong style="color:var(--ink);">边界在哪</strong>：静态/动态分割决定缓存命中率</li>
+          <li><strong style="color:var(--ink);">预算分配</strong>：scaffold / project / instructions 各几 K</li>
+          <li><strong style="color:var(--ink);">查找规则</strong>：directory walk vs 显式 include vs 自动检索</li>
+        </ul>
+      </div>
+    </div>
+
+    <blockquote>
+      <strong>反模式：</strong>把 "system prompt" 当字符串模板。一旦项目结构、git 状态、用户配置任何一项变化，模板就失效；正确做法是<strong>把它当函数</strong>：每轮重新执行，得到新串。
+    </blockquote>
+  </div>
+</section>
+
+<!-- New slide: 决策 ① 续 · 历史管理 + Prompt cache 真正作用范围 -->
+<section class="slide" id="s-anat1b">
+  <div class="slide-num"><strong>09</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">05 · 决策 ① · CONTEXT · 历史与缓存</span>
+      <h2>历史不爆、cache 不破：<em>滑窗 + 递归压缩</em></h2>
+      <p class="lead">上一页讲了上下文 pipeline 的"段位安排"，留了一个真正关键的问题：对话历史会无限增长。这一页把 <strong>prompt cache 的真实作用范围 · 为什么不能全量带历史 · 怎么压 · 多次压怎么递归</strong> 四件事一次说清。</p>
+    </div>
+
+    <div class="hermes-two" style="margin-bottom: 18px;">
+      <div>
+        <h4 class="strong">① Prompt cache 是<strong>跨 turn</strong> 的 prefix cache</h4>
+        <pre class="hermes-code"><span class="com">// turn N+1 的请求 messages 序列：</span>
+[seg1] SCAFFOLD               <span class="acc">✓ hit</span>
+[seg2] tools schema           <span class="acc">✓ hit</span>
+[seg3] AGENTS.md              <span class="acc">✓ hit</span>
+[seg4] memory snapshot        <span class="acc">✓ hit</span>
+[seg5] history turn 1..N      <span class="acc">✓ hit</span>  <span class="com">// append-only</span>
+<span class="kw">─────── cache 命中边界 ────────</span>
+[seg6] turn N+1 新内容        <span class="str">○ recompute</span></pre>
+        <p style="font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; font-family: -apple-system, 'PingFang SC', sans-serif; line-height: 1.65;">
+          只要前缀字节一致就命中，<strong>不区分同 turn 内还是跨 turn</strong>。Hermes 能保 15+ turn 共享同一前缀，靠的就是 history 段 append-only、memory 段 turn 内冻结。
+        </p>
+      </div>
+      <div>
+        <h4 class="strong">② 触发条件按 <strong>token</strong>，不按 turn</h4>
+        <ul style="font-size: 13.5px; color: var(--ink-soft); padding-left: 20px; margin: 0 0 14px; font-family: -apple-system, 'PingFang SC', sans-serif; line-height: 1.75;">
+          <li>一轮可能 200 tok，也可能 15K tok（read_file 一次塞满）</li>
+          <li>触发条件：<code>tokens &gt; window × 0.5</code></li>
+          <li>可能 turn 30 触发，也可能 turn 200 才触发</li>
+        </ul>
+        <h4 class="strong">③ 切法：<strong>头 + 中间摘要 + 尾</strong></h4>
+        <pre class="hermes-code"><span class="com"># 触发后一次性硬切（不渐进）</span>
+[head]    turn 1~k      <span class="acc">~5K</span>   <span class="com"># 保留最初目标</span>
+[summary] mid range     <span class="acc">~5K</span>   <span class="com"># LLM 浓缩</span>
+[tail]    last m turns  <span class="acc">~10K</span>  <span class="com"># 保最近上下文</span></pre>
+      </div>
+    </div>
+
+    <h3 style="font-size: 16px; margin: 6px 0 10px; letter-spacing: -0.01em;">④ 多次压缩 = <em>递归</em>，不回头读全量 jsonl</h3>
+
+    <div class="hermes-flow">
+      <div class="step">
+        <div class="tier">FIRST · turn 30 触发</div>
+        <div class="name">输入 = turn 1~25 完整 (~80K) → 输出 summary_v1 (~5K)</div>
+        <div class="det">压完 prompt = <code>[system] + [head turn 1~5] + [summary_v1] + [tail turn 26~30]</code>。从 turn 31 起 append，cache 又稳定下来——直到下次触发。</div>
+      </div>
+      <div class="step">
+        <div class="tier">SECOND · turn 65 触发</div>
+        <div class="name">输入 = <strong style="color:var(--accent);">summary_v1 (5K)</strong> + turn 26~60 (~75K) → 输出 summary_v2</div>
+        <div class="det">注意：<strong>不回去读 jsonl 的 turn 1~25</strong>，只用上次的 summary_v1。理由：① 全量重压 token 越来越贵；② 全量历史很快塞不进 context window；③ 真正重要的事实在多次压缩中会被反复保留。</div>
+      </div>
+      <div class="step">
+        <div class="tier">THIRD · turn 100 触发</div>
+        <div class="name">输入 = <strong style="color:var(--accent);">summary_v2 (5K)</strong> + turn 61~95 (~75K) → 输出 summary_v3</div>
+        <div class="det">每次压缩输入恒定在 ~80K，summary 体量恒定在 ~5K。原始 jsonl <strong>从未参与压缩流程</strong>——它只是 source of truth，按需查回。</div>
+      </div>
+    </div>
+
+    <div class="grid g3" style="gap: 14px; margin-top: 16px;">
+      <div style="padding: 12px 14px; background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--accent-2); border-radius: 4px; font-size: 12.5px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft); line-height: 1.65;">
+        <strong style="color: var(--ink); display: block; margin-bottom: 4px;">写入端 · jsonl</strong>永远 append-only，全量留，从不删——source of truth。
+      </div>
+      <div style="padding: 12px 14px; background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 4px; font-size: 12.5px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft); line-height: 1.65;">
+        <strong style="color: var(--ink); display: block; margin-bottom: 4px;">读取端 · prompt</strong>只放窗口（最近 + 摘要），控制在 context 50~75% 内——前缀稳定，cache 多轮命中。
+      </div>
+      <div style="padding: 12px 14px; background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--accent-3); border-radius: 4px; font-size: 12.5px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft); line-height: 1.65;">
+        <strong style="color: var(--ink); display: block; margin-bottom: 4px;">召回端 · session_search</strong>需要老细节就按需查 jsonl，结果作为 tool_result 末尾追加——<strong>不动前缀</strong>，cache 不破。
+      </div>
+    </div>
+
+    <blockquote style="margin-top: 16px;">
+      <strong>压缩的代价：</strong>那一刻 cache 命中边界会前移到 <code>[head]</code> 末尾（summary 是新写的，未在 cache 里）。但这是<strong>一次性代价</strong>——压完之后从下个 turn 起 append，新前缀稳定下来，cache 又能用 15+ 轮。<strong>关键是不要每轮微调历史</strong>，否则 cache 永远命中不了。
+    </blockquote>
+  </div>
+</section>
+
+<!-- New slide: Memory ABC 三层 + 工业级"压缩 + 升级"做法 -->
+<section class="slide alt" id="s-anat1c">
+  <div class="slide-num"><strong>10</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">05 · 决策 ① · MEMORY ABC</span>
+      <h2>三层 memory 的<em>边界与分工</em>：A · B · C</h2>
+      <p class="lead">"memory" 这个词在 Agent 里挂了好几个东西。生产级实现至少分三层——A 是 session 工作面，B 是项目备忘录，C 是用户私货。三者作用域不同、生命周期不同，<strong>谁也不替谁干活</strong>。</p>
+    </div>
+
+    <table class="hermes-map" style="margin-bottom: 18px;">
+      <thead>
+        <tr>
+          <th style="width:90px">层</th>
+          <th style="width:170px">作用域</th>
+          <th>典型载体</th>
+          <th style="width:100px">跨 session</th>
+          <th style="width:100px">跨项目</th>
+          <th style="width:100px">跨用户</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="lyr">A</span><br><span style="color:var(--ink-mute);font-size:11px;">working</span></td>
+          <td class="layer-name">当前 session<br><span style="color:var(--ink-mute);font-size:12px;font-weight:normal;">含多个 turn / 多次启动</span></td>
+          <td class="impl">prompt 内 history 段 · jsonl 归档 · session-level summary</td>
+          <td class="impl" style="color:var(--bad);">✗</td>
+          <td class="impl" style="color:var(--bad);">✗</td>
+          <td class="impl" style="color:var(--bad);">✗</td>
+        </tr>
+        <tr>
+          <td><span class="lyr" style="background:var(--accent);">B</span><br><span style="color:var(--ink-mute);font-size:11px;">project</span></td>
+          <td class="layer-name">整个项目域<br><span style="color:var(--ink-mute);font-size:12px;font-weight:normal;">团队 git 共享</span></td>
+          <td class="impl"><code>./.hermes/MEMORY.md</code> · <code>AGENTS.md</code> · <code>.cursorrules</code></td>
+          <td class="impl" style="color:var(--accent-2);">✓</td>
+          <td class="impl" style="color:var(--bad);">✗</td>
+          <td class="impl" style="color:var(--ink-mute);">△ 团队</td>
+        </tr>
+        <tr>
+          <td><span class="lyr" style="background:var(--accent-3);">C</span><br><span style="color:var(--ink-mute);font-size:11px;">user</span></td>
+          <td class="layer-name">用户的所有项目<br><span style="color:var(--ink-mute);font-size:12px;font-weight:normal;">本地私货，不进 git</span></td>
+          <td class="impl"><code>~/.config/agent/USER.md</code> · Mem0 / Letta 云端</td>
+          <td class="impl" style="color:var(--accent-2);">✓</td>
+          <td class="impl" style="color:var(--accent-2);">✓</td>
+          <td class="impl" style="color:var(--bad);">✗</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 16px; margin: 6px 0 10px; letter-spacing: -0.01em;">工业级做法：<em>压缩 + 升级</em>双轨——summary 压"过程"，B 记"结论"</h3>
+
+    <div class="hermes-two" style="margin-bottom: 16px;">
+      <div>
+        <h4 class="weak">只压不升级（脆弱）</h4>
+        <pre class="hermes-code"><span class="com"># turn 30 触发压缩</span>
+jsonl:    1~30 全量保留
+prompt:   [head] + [summary_v1] + [tail]
+MEMORY.md: <span class="kw">没动</span>
+
+<span class="com"># 后果：</span>
+<span class="com"># · 重要事实压进 summary_v1</span>
+<span class="com"># · 下次再压会进 summary_v2</span>
+<span class="com"># · 多轮压缩后<strong>糊化、可能丢失</strong></span></pre>
+      </div>
+      <div>
+        <h4 class="strong">压缩 + 升级（工业级）</h4>
+        <pre class="hermes-code"><span class="com"># turn 30 触发压缩 + nudge</span>
+jsonl:    1~30 全量保留
+prompt:   [head] + [summary_v1] + [tail]
+MEMORY.md: <span class="acc">+ "checkout-svc 的 tax_calc.go</span>
+<span class="acc">             容易在边界订单出 NaN"</span>
+
+<span class="com"># 后果：</span>
+<span class="com"># · 这条事实从 A 升级到 B</span>
+<span class="com"># · 不再依赖 summary 是否记住</span>
+<span class="com"># · 即使 summary 糊化到 v5，结论仍清晰</span></pre>
+      </div>
+    </div>
+
+    <div class="grid g3" style="gap: 14px; margin-bottom: 14px;">
+      <div style="padding: 12px 14px; background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--ink-mute); border-radius: 4px; font-size: 12.5px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft); line-height: 1.65;">
+        <strong style="color: var(--ink); display: block; margin-bottom: 4px;">A · 过程层</strong>"我刚 grep 到 ImportError" / "上次的工具调用参数"——会被压成 summary，多次压缩后糊化是<strong>正常的</strong>。需要原文走 <code>session_search</code> 查 jsonl。
+      </div>
+      <div style="padding: 12px 14px; background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 4px; font-size: 12.5px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft); line-height: 1.65;">
+        <strong style="color: var(--ink); display: block; margin-bottom: 4px;">B · 结论层</strong>"这个项目用 PostgreSQL" / "tax_calc 容易出 bug" / "DCDC 阈值是 3A"——绑项目，进 git。<strong>nudge 触发时主动从 A 升级到 B</strong>。
+      </div>
+      <div style="padding: 12px 14px; background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--accent-3); border-radius: 4px; font-size: 12.5px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft); line-height: 1.65;">
+        <strong style="color: var(--ink); display: block; margin-bottom: 4px;">C · 偏好层</strong>"我习惯 ruff 不用 black" / "我看代码喜欢简洁解释"——绑你这个人，跨所有项目。clone 别人的项目不会带过来。
+      </div>
+    </div>
+
+    <div style="background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--accent-2); border-radius: 4px; padding: 14px 18px; margin-bottom: 14px;">
+      <div style="font-weight: 700; color: var(--accent-2); font-size: 13px; margin-bottom: 6px; font-family: -apple-system, 'PingFang SC', sans-serif;">关键单向规则：B 和 C 不回流到 A</div>
+      <div style="font-size: 13px; color: var(--ink-soft); line-height: 1.7; font-family: -apple-system, 'PingFang SC', sans-serif;">
+        信息升级是<strong>单向的</strong>——A → B 或 A → C。B / C 不会反过来污染 A 的某条历史，它们只在每个 turn 启动时被读出来，作为 <code>memory_snapshot</code> 段参与构建 prompt（即上一页的 <code>[seg4]</code>）。这条单向箭头是 memory 系统稳定的关键——一旦双向，整个体系就乱。
+      </div>
+    </div>
+
+    <blockquote>
+      <strong>一句话总结：</strong>A 是 session 工作面，会变、会压、用完即丢；B 是项目备忘录，跟项目走、团队共享；C 是个人私货，跟你走、跨所有项目。<strong>summary 解决"token 不爆"，B 解决"重要事实不糊化"</strong>——只压不升级，多轮后必丢；只升级不压，token 还是会爆。两轨并存，才是工业级。
+    </blockquote>
+  </div>
+</section>
+
+<section class="slide" id="s-anat2">
+  <div class="slide-num"><strong>11</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">05 · 决策 ② · CAPABILITY</span>
+      <h2>能力暴露：<em>四种界面</em>，量身选择</h2>
+      <p class="lead">"给 agent 一个能力"远不止"加个 tool"。同一个目标可以走 4 条路：原生 tool 调用、MCP 协议、Markdown 技能文档、独立 sub-agent。它们在<strong>调用成本、可控性、上下文隔离</strong>上各有取舍。</p>
+    </div>
+
+    <div class="grid g2" style="gap: 22px; margin-bottom: 18px;">
+      <div>
+        <h3 style="font-size: 17px; margin: 0 0 12px; letter-spacing: -0.01em;">实物 · 两层叠放</h3>
+        <div style="background: var(--paper); border: 1px solid var(--accent); border-radius: 4px; padding: 14px 18px; margin-bottom: 10px;">
+          <div style="font-size: 11px; letter-spacing: 0.12em; color: var(--accent); font-weight: 700; margin-bottom: 8px;">DIFFERENTIATED · vendor-specific</div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-family: ui-monospace, monospace; font-size: 12px;">
+            <div style="background:var(--bg);padding:8px 10px;border:1px solid var(--line);border-radius:3px;"><strong>git_commit</strong><br><span style="color:var(--ink-mute);font-size:10px;">SKILL.md · 4K</span></div>
+            <div style="background:var(--bg);padding:8px 10px;border:1px solid var(--line);border-radius:3px;"><strong>open_pr</strong><br><span style="color:var(--ink-mute);font-size:10px;">SKILL.md · 3K</span></div>
+            <div style="background:var(--bg);padding:8px 10px;border:1px solid var(--line);border-radius:3px;"><strong>run_tests</strong><br><span style="color:var(--ink-mute);font-size:10px;">SKILL.md · 5K</span></div>
+            <div style="background:var(--bg);padding:8px 10px;border:1px solid var(--line);border-radius:3px;"><strong>deploy</strong><br><span style="color:var(--ink-mute);font-size:10px;">team-specific</span></div>
+          </div>
+        </div>
+        <div style="text-align: center; color: var(--ink-mute); font-size: 11px; letter-spacing: 0.06em; margin: 4px 0;">↑ 各厂在此卷　　每个 harness 必须有 ↓</div>
+        <div style="background: var(--paper); border: 1px solid var(--ink-mute); border-radius: 4px; padding: 14px 18px;">
+          <div style="font-size: 11px; letter-spacing: 0.12em; color: var(--ink-mute); font-weight: 700; margin-bottom: 8px;">NON-NEGOTIABLE · primitives</div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-family: ui-monospace, monospace; font-size: 12px;">
+            <div style="background:var(--bg);padding:8px 10px;border:1px solid var(--line);border-radius:3px;text-align:center;"><strong>read</strong><br><span style="color:var(--ink-mute);font-size:10px;">FILE</span></div>
+            <div style="background:var(--bg);padding:8px 10px;border:1px solid var(--line);border-radius:3px;text-align:center;"><strong>write · edit</strong><br><span style="color:var(--ink-mute);font-size:10px;">FILE</span></div>
+            <div style="background:var(--bg);padding:8px 10px;border:1px solid var(--line);border-radius:3px;text-align:center;"><strong>bash</strong><br><span style="color:var(--ink-mute);font-size:10px;">EXEC</span></div>
+            <div style="background:var(--bg);padding:8px 10px;border:1px solid var(--line);border-radius:3px;text-align:center;"><strong>grep · glob</strong><br><span style="color:var(--ink-mute);font-size:10px;">CODE NAV</span></div>
+          </div>
+        </div>
+        <p style="margin-top: 10px; color: var(--ink-mute); font-size: 12px; font-family: -apple-system, 'PingFang SC', sans-serif; font-style: italic;">下层是工具（primitives），上层是技能（Markdown 文档教 agent 怎么组合用工具）。</p>
+      </div>
+
+      <div>
+        <h3 style="font-size: 17px; margin: 0 0 12px; letter-spacing: -0.01em;">四种暴露界面</h3>
+        <table class="fw-table">
+          <thead><tr><th>界面</th><th>形态</th><th>什么时候用</th></tr></thead>
+          <tbody>
+            <tr><td class="name">原生 Tool</td><td>JSON schema</td><td>原子操作、需要严格类型</td></tr>
+            <tr><td class="name">MCP</td><td>跨进程协议</td><td>跨 agent 复用、第三方能力</td></tr>
+            <tr><td class="name">Skill (md)</td><td>文档 + 工具组合</td><td>多步流程、可被人审阅</td></tr>
+            <tr><td class="name">Sub-agent</td><td>独立 session</td><td>任务大、需上下文隔离</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; margin: 18px 0 8px; letter-spacing: 0.06em; color: var(--ink-mute); text-transform: uppercase;">Sub-agent 三型分工</h3>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-family: ui-monospace, monospace; font-size: 11px;">
+          <div style="background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:10px;text-align:center;"><strong style="color:var(--accent-3);">EXPLORE</strong><br><span style="color:var(--ink-mute);">read-only · 规划侦察</span></div>
+          <div style="background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:10px;text-align:center;"><strong style="color:var(--ink);">GENERAL</strong><br><span style="color:var(--ink-mute);">full · 日常工人</span></div>
+          <div style="background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:10px;text-align:center;"><strong style="color:var(--accent);">VERIFY</strong><br><span style="color:var(--ink-mute);">exec+read · 测试确认</span></div>
+        </div>
+        <p style="margin-top: 8px; color: var(--ink-mute); font-size: 11.5px; font-family: -apple-system, 'PingFang SC', sans-serif; font-style: italic;">关键约束：sub-agent <strong>不可再 spawn sub-agent</strong>——避免无限递归。</p>
+      </div>
+    </div>
+
+    <blockquote>
+      <strong>选择口诀：</strong>原子动作给<strong>tool</strong>，跨进程能力走 <strong>MCP</strong>，多步流程写成 <strong>SKILL.md</strong>，任务太大开 <strong>sub-agent</strong>。同一能力可同时在多层暴露——比如 git 是 bash tool，也是 git_commit.md skill。
+    </blockquote>
+  </div>
+</section>
+
+<section class="slide alt" id="s-anat3">
+  <div class="slide-num"><strong>12</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">05 · 决策 ③ · STATE</span>
+      <h2>状态持久化：<em>session 能不能续上</em></h2>
+      <p class="lead">长任务、跨设备、协作场景下的真问题——agent 进程被杀以后，能否<strong>从精确的那一行</strong>恢复？2026 年的趋势是 session 与 harness <em>解耦</em>，让会话成为一等公民。</p>
+    </div>
+
+    <div class="grid g2" style="gap: 22px; margin-bottom: 18px;">
+      <div>
+        <h3 style="font-size: 17px; margin: 0 0 12px; letter-spacing: -0.01em;">实物 · JSONL append-only</h3>
+        <div style="background: #1a1a1a; border-radius: 4px; padding: 14px 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.75; color: #d8d4cb; overflow-x: auto;">
+          <div style="color: #888; font-size: 10px; letter-spacing: 0.1em; margin-bottom: 10px;">.claude/projects/harness/session.jsonl<span style="float:right;color:#888;">APPEND-ONLY</span></div>
+          <div><span style="color:#666;">001</span> {"role": "user", "msg": "edit main.py..."}</div>
+          <div><span style="color:#666;">002</span> {"role": "assistant", "thinking": "..."}</div>
+          <div><span style="color:#666;">003</span> {"tool_call": "read_file", "args": {...}}</div>
+          <div><span style="color:#666;">004</span> {"tool_result": "def add(a, b): ..."}</div>
+          <div><span style="color:#666;">005</span> {"tool_call": "edit_file", "args": {...}}</div>
+          <div><span style="color:#666;">006</span> {"tool_result": "ok · 1 file changed"}</div>
+          <div><span style="color:#666;">007</span> {"compaction": {"older_turns": 2, ...}}</div>
+          <div style="color: var(--bad); font-style: italic;"><span style="color:#666;">008</span> ⚠ session interrupted · process killed</div>
+          <div><span style="color:#666;">009</span> {"resume": "session.jsonl", "from_line": 8}</div>
+          <div><span style="color:#666;">010</span> {"tool_result": "5 passed in 0.42s"}</div>
+          <div><span style="color:#666;">011</span> {"role": "assistant", "msg": "tests pass."}</div>
+        </div>
+        <p style="margin-top: 10px; color: var(--ink-mute); font-size: 12px; font-family: -apple-system, 'PingFang SC', sans-serif; font-style: italic;">一行一事件 · 每写 flush+sync · resume 从崩溃前最后一行开始，<strong>语义完全等价</strong>。</p>
+      </div>
+
+      <div>
+        <h3 style="font-size: 17px; margin: 0 0 12px; letter-spacing: -0.01em;">三种持久化方案对比</h3>
+        <table class="fw-table">
+          <thead><tr><th>方案</th><th>载体</th><th>权衡</th></tr></thead>
+          <tbody>
+            <tr><td class="name">进程内</td><td>内存</td><td>快 / 但 crash 即丢</td></tr>
+            <tr><td class="name">本地 JSONL</td><td>文件 append</td><td>简单、可 diff、跨进程</td></tr>
+            <tr><td class="name">外部解耦</td><td>独立 service</td><td>多设备 / 多人 / 高可用</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; margin: 18px 0 8px; letter-spacing: 0.06em; color: var(--ink-mute); text-transform: uppercase;">关键决策点</h3>
+        <ul style="margin: 0; padding-left: 20px; color: var(--ink-soft); font-family: -apple-system, 'PingFang SC', sans-serif; font-size: 13.5px; line-height: 1.75;">
+          <li><strong style="color:var(--ink);">恢复语义</strong>：exact replay vs 摘要重建</li>
+          <li><strong style="color:var(--ink);">压缩时机</strong>：何时把旧 turn 折叠为 summary</li>
+          <li><strong style="color:var(--ink);">访问主体</strong>：单设备 / 跨设备 / 多人协作</li>
+        </ul>
+
+        <p style="margin-top: 14px; padding: 10px 14px; background: var(--paper); border-left: 3px solid var(--accent-2); font-size: 12.5px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft);"><strong style="color: var(--accent-2);">2026 趋势：</strong>Anthropic 把 session 从 harness 解耦——session 是托管服务，harness 只是消费者。Cursor 也在跟进。</p>
+      </div>
+    </div>
+
+    <blockquote>
+      <strong>简单准则：</strong>能用 <strong>JSONL append-only</strong> 解决的就别上数据库；这套格式同时给你 crash recovery、跨进程审计、人类可读历史——三件事一次满足。
+    </blockquote>
+
+    <p style="margin-top: 14px; padding: 12px 16px; background: var(--paper); border-left: 3px solid var(--accent-2); font-size: 13px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft);">
+      <strong style="color: var(--accent-2);">承上启下：</strong>STATE 是会话内的<em>忠实事件流</em>，MEMORY（决策⑤）是跨会话的<em>浓缩沉淀</em>。STATE 是 MEMORY 的原料——下一节决策④讲完安全后，决策⑤展开 MEMORY 自身的 4 个子决策。
+    </p>
+  </div>
+</section>
+
+<section class="slide" id="s-anat4">
+  <div class="slide-num"><strong>13</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">05 · 决策 ④ · SAFETY</span>
+      <h2>危险动作：<em>三层防线</em>组合拳</h2>
+      <p class="lead">权限不是单点检查，而是<strong>静态规则 + 动态钩子 + 人在回路</strong>三层叠加。任何一层单独用都救不了——<code>rm -rf /</code> 在静态规则里看是 bash，需要 hook 解析参数；hook 不确定时再升级到 human approval。</p>
+    </div>
+
+    <div class="grid g2" style="gap: 22px; margin-bottom: 18px;">
+      <div>
+        <h3 style="font-size: 17px; margin: 0 0 12px; letter-spacing: -0.01em;">实物 · 三层同心圆 + hook 流</h3>
+        <div style="background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 18px; font-family: ui-monospace, monospace; font-size: 12px; color: var(--ink-soft); line-height: 1.85;">
+          <div style="color: var(--bad); font-weight: 700; font-size: 11px; letter-spacing: 0.1em; margin-bottom: 4px;">┌─ FULL ACCESS ─────────────┐</div>
+          <div style="padding-left: 14px;"><span style="color: var(--warn); font-weight: 700;">┌─ WORKSPACE-WRITE ─────┐</span></div>
+          <div style="padding-left: 28px;"><span style="color: var(--good); font-weight: 700;">┌─ READ-ONLY ───────┐</span></div>
+          <div style="padding-left: 42px;"><span style="color: var(--good);">read_file · grep · glob · bash:ls</span></div>
+          <div style="padding-left: 28px;"><span style="color: var(--good); font-weight: 700;">└───────────────────┘</span></div>
+          <div style="padding-left: 28px;"><span style="color: var(--warn);">+ edit_file · write_file</span></div>
+          <div style="padding-left: 14px;"><span style="color: var(--warn); font-weight: 700;">└───────────────────────┘</span></div>
+          <div style="padding-left: 14px;"><span style="color: var(--bad);">+ bash:任意 · 网络</span></div>
+          <div style="color: var(--bad); font-weight: 700;">└───────────────────────────┘</div>
+          <div style="margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 11px; color: var(--ink-mute);">
+            <div><strong>pre-tool hook</strong> → JSON on stdin</div>
+            <div style="padding-left: 14px;">exit 0 → <span style="color: var(--good); font-weight: 700;">ALLOW</span> · exit 2 → <span style="color: var(--bad); font-weight: 700;">DENY</span></div>
+            <div style="padding-left: 14px;"><code>bash:rm -rf temp/</code> → <span style="color: var(--warn); font-weight: 700;">CONFIRM</span> 弹窗</div>
+            <div style="padding-left: 14px;"><code>bash:rm -rf /</code> → <span style="color: var(--bad); font-weight: 700;">DENY</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3 style="font-size: 17px; margin: 0 0 12px; letter-spacing: -0.01em;">三层防线分工</h3>
+        <table class="fw-table">
+          <thead><tr><th>层</th><th>形式</th><th>负责</th></tr></thead>
+          <tbody>
+            <tr><td class="name">静态规则</td><td>config / mode</td><td>粗粒度边界（哪些 tool 能用）</td></tr>
+            <tr><td class="name">动态钩子</td><td>pre/post hook</td><td>解析参数（<code>rm -rf /</code> 拦截）</td></tr>
+            <tr><td class="name">人在回路</td><td>interactive approval</td><td>不确定时弹 [allow / deny / always]</td></tr>
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; margin: 18px 0 8px; letter-spacing: 0.06em; color: var(--ink-mute); text-transform: uppercase;">业界做法</h3>
+        <ul style="margin: 0; padding-left: 20px; color: var(--ink-soft); font-family: -apple-system, 'PingFang SC', sans-serif; font-size: 13.5px; line-height: 1.75;">
+          <li><strong style="color:var(--ink);">Claude Code</strong>：四档 mode + hooks + interactive</li>
+          <li><strong style="color:var(--ink);">Cursor</strong>：YOLO/Ask 切换 + 文件白名单</li>
+          <li><strong style="color:var(--ink);">Cline</strong>：Plan / Act 双模式 + auto-approve list</li>
+          <li><strong style="color:var(--ink);">Aider</strong>：dry-run + 自动 commit + 可回滚</li>
+        </ul>
+
+        <p style="margin-top: 14px; padding: 10px 14px; background: var(--paper); border-left: 3px solid var(--accent); font-size: 12.5px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft);"><strong style="color: var(--accent);">关键洞察：</strong>hook 是 harness 唯一不需改代码就能扩展的<strong>SPI 接口</strong>——把"业务规则"放 hook，把"协议"放静态配置。</p>
+      </div>
+    </div>
+
+    <blockquote>
+      <strong>终极原则：</strong>权限设计的目标不是"全部禁止"，而是<strong>让正确的事变快、错误的事变慢</strong>——读操作零摩擦，写操作要确认，破坏性操作必须 human-in-the-loop。
+    </blockquote>
+
+    <p style="margin-top: 14px; padding: 12px 16px; background: var(--paper); border-left: 3px solid var(--accent); font-size: 13px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft);">
+      <strong style="color: var(--accent);">下一站：决策 ⑤ MEMORY →</strong> 五个决策中最复杂的一个。它本身又拆成 4 个子决策（写啥/何时写/读/忘），有专属的 3×3 选型矩阵和 LoCoMo 基准——值得 4 张专页。
+    </p>
+  </div>
+</section>
+
+<!-- Memory Chapter (4 slides, restructured) -->
+<section class="slide" id="s-mem1">
+  <div class="slide-num"><strong>14</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">05 · 决策 ⑤ · MEMORY · 4 个子决策</span>
+      <h2>记忆系统：<em>决策 ⑤</em> 也由 <em>4 个子决策</em>构成</h2>
+      <p class="lead">记忆是五个工程决策里最复杂的一个，单独展开成一章。它本身又拆成 4 个独立子决策——每个都可以独立评估、独立优化，也都可以独立出错。把<strong>会话内的 STATE 反思成跨会话的 MEMORY</strong>，正是这一章要回答的工程问题。</p>
+    </div>
+
+    <div class="grid g2" style="gap: 18px;">
+      <div class="card" style="border-left: 4px solid var(--accent);">
+        <span class="tag" style="color: var(--accent);">DECISION 1 · WRITE WHAT</span>
+        <h3>决定「什么值得记」</h3>
+        <p style="font-family:-apple-system,'PingFang SC',sans-serif;font-size:14.5px;"><strong>该记：</strong>用户偏好、不可重做的副作用、错误纠正、项目级约定。<br><strong>不该记：</strong>可重做的中间计算、原始对话、临时调试输出。</p>
+        <p style="color:var(--bad);font-family:-apple-system,'PingFang SC',sans-serif;font-size:13px;margin-top:10px;font-style:italic;">反模式：把每轮对话原样入库 → 信噪比拉垮，召回质量反而下降。</p>
+      </div>
+      <div class="card" style="border-left: 4px solid var(--accent-3);">
+        <span class="tag" style="color: var(--accent-3);">DECISION 2 · WRITE WHEN</span>
+        <h3>决定「何时写」</h3>
+        <p style="font-family:-apple-system,'PingFang SC',sans-serif;font-size:14.5px;"><strong>推荐：</strong>周期性 nudge（每 N 轮）、压缩前 flush、用户显式 /remember、任务完成后。<br><strong>避免：</strong>turn 内热写——会破坏同一轮内的前缀缓存。</p>
+        <p style="color:var(--accent-2);font-family:-apple-system,'PingFang SC',sans-serif;font-size:13px;margin-top:10px;font-style:italic;">Hermes 模式：写路径与读路径解耦，写不立即影响读。</p>
+      </div>
+      <div class="card" style="border-left: 4px solid var(--accent-2);">
+        <span class="tag" style="color: var(--accent-2);">DECISION 3 · READ HOW</span>
+        <h3>决定「怎么进 prompt」</h3>
+        <p style="font-family:-apple-system,'PingFang SC',sans-serif;font-size:14.5px;"><strong>被动注入：</strong>稳定不变的偏好、项目事实，启动时冻结快照。<br><strong>主动召回：</strong>长尾、情景性、按需查询——记忆作为 Tool 暴露（session_search）。</p>
+        <p style="color:var(--accent);font-family:-apple-system,'PingFang SC',sans-serif;font-size:13px;margin-top:10px;font-style:italic;">双轨是关键：全被动会爆炸 prompt，全主动会遗漏隐性需求。</p>
+      </div>
+      <div class="card" style="border-left: 4px solid var(--warn);">
+        <span class="tag" style="color: var(--warn);">DECISION 4 · FORGET WHEN</span>
+        <h3>决定「何时忘」</h3>
+        <p style="font-family:-apple-system,'PingFang SC',sans-serif;font-size:14.5px;"><strong>必须做：</strong>冲突检测与合并、频次/时间衰减、同主题上限、不准确记忆可撤回。<br><strong>后果：</strong>不遗忘 = 慢性中毒，矛盾记忆累积导致回答漂移。</p>
+        <p style="color:var(--good);font-family:-apple-system,'PingFang SC',sans-serif;font-size:13px;margin-top:10px;font-style:italic;">Letta sleep-time compute：闲时在后台做合并 / 归纳 / 反思。</p>
+      </div>
+    </div>
+
+    <blockquote style="margin-top: 18px;">
+      <strong>一句话原则：</strong>记忆系统的稳定性不取决于「记得多准」，而取决于「忘得多干净」。四个决策中最容易被忽视的是 #4，也是生产环境里崩最多的那个。
+    </blockquote>
+  </div>
+</section>
+
+<section class="slide alt" id="s-mem1b">
+  <div class="slide-num"><strong>15</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">05 · 决策 ⑤ · MEMORY · 选型矩阵</span>
+      <h2><em>3 × 3 矩阵</em>：什么记忆用什么底层</h2>
+      <p class="lead">Tulving 三类长期记忆（语义 / 情景 / 程序）× 三种存储底层（文件 / 向量 / 时序图）——这不是理论，是 2025–2026 生产系统的默认选型阵列。</p>
+    </div>
+
+    <table class="hermes-map" style="margin-bottom: 14px;">
+      <thead>
+        <tr>
+          <th style="width: 22%;">记忆类型</th>
+          <th>文件 / Markdown</th>
+          <th>向量库</th>
+          <th>时序知识图</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="layer-name">语义记忆</span><br><span style="color:var(--ink-mute);font-size:12px;">偏好 / 事实 / 规则</span></td>
+          <td class="impl" style="color:var(--accent-2);"><strong>✓ 主推</strong>　人类可改可 diff<br><span style="font-size:12px;color:var(--ink-mute);">Hermes MEMORY.md / Cursor .cursorrules</span></td>
+          <td class="impl" style="color:var(--warn);">△ 适合长尾<br><span style="font-size:12px;color:var(--ink-mute);">商业上主要是 Mem0</span></td>
+          <td class="impl" style="color:var(--bad);">✗ 过度设计<br><span style="font-size:12px;color:var(--ink-mute);">语义事实不需时序</span></td>
+        </tr>
+        <tr>
+          <td><span class="layer-name">情景记忆</span><br><span style="color:var(--ink-mute);font-size:12px;">事件 / 历史 / 对话</span></td>
+          <td class="impl" style="color:var(--bad);">✗ 不可索引<br><span style="font-size:12px;color:var(--ink-mute);">量一大就走不动</span></td>
+          <td class="impl" style="color:var(--warn);">△ 缺时序语义<br><span style="font-size:12px;color:var(--ink-mute);">"上次""之后"难查</span></td>
+          <td class="impl" style="color:var(--accent-2);"><strong>✓ 主推</strong>　Zep / Graphiti<br><span style="font-size:12px;color:var(--ink-mute);">Hermes 用 SQLite FTS5 平价替代</span></td>
+        </tr>
+        <tr>
+          <td><span class="layer-name">程序记忆</span><br><span style="color:var(--ink-mute);font-size:12px;">技能 / 工作流 / 模板</span></td>
+          <td class="impl" style="color:var(--accent-2);"><strong>✓ 主推</strong>　skills/ 目录<br><span style="font-size:12px;color:var(--ink-mute);">Anthropic Skills / Claude Code</span></td>
+          <td class="impl" style="color:var(--warn);">△ 仅检索阶段<br><span style="font-size:12px;color:var(--ink-mute);">高位检索 + 原文调起</span></td>
+          <td class="impl" style="color:var(--bad);">✗ 不适用<br><span style="font-size:12px;color:var(--ink-mute);">技能之间不是图关系</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="grid g3" style="gap: 14px; margin-top: 8px;">
+      <div style="padding: 14px 16px; background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--accent-2); border-radius: 4px; font-size: 13px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft);">
+        <strong style="color: var(--ink); display: block; margin-bottom: 4px;">Hermes 模式</strong>语义 → MEMORY.md；情景 → SQLite FTS5；程序 → skills/。全部可 Git、可 diff、可人工审计。
+      </div>
+      <div style="padding: 14px 16px; background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--accent-3); border-radius: 4px; font-size: 13px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft);">
+        <strong style="color: var(--ink); display: block; margin-bottom: 4px;">Mem0 模式</strong>语义 + 情景 合并为「向量 + 图」混合；位置在深色区间，胜在热路径查询。
+      </div>
+      <div style="padding: 14px 16px; background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 4px; font-size: 13px; font-family: -apple-system, 'PingFang SC', sans-serif; color: var(--ink-soft);">
+        <strong style="color: var(--ink); display: block; margin-bottom: 4px;">LangGraph Store</strong>一个 namespaced KV 接口，不替你分类，由开发者自己安排三类走不同 namespace。
+      </div>
+    </div>
+
+    <blockquote style="margin-top: 16px;">
+      把三类记忆全塞同一个向量库，是 2024 年 RAG 浪潮留下的最大遗产；把它们分开是进入 2026 的门票。选型不是选哪个「最好」，而是选哪几个「同时上」。
+    </blockquote>
+  </div>
+</section>
+
+<section class="slide" id="s-mem2">
+  <div class="slide-num"><strong>16</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">05 · 决策 ⑤ · MEMORY · 框架与基准</span>
+      <h2>框架对比 + <em>LoCoMo 基准</em></h2>
+      <p class="lead">Mem0 / Zep / Letta / LangGraph 是 2026 主流四选；LoCoMo（1540 问题、多会话 QA）是记忆评测的事实标准。这一页只看两件事：<strong>架构差异</strong>与<strong>证据性性能</strong>。</p>
+    </div>
+
+    <div class="grid g2" style="gap: 28px; margin-bottom: 22px;">
+      <div>
+        <h3 style="font-size:18px;margin:0 0 12px;letter-spacing:-0.01em">主流框架架构特征</h3>
+        <table class="fw-table">
+          <thead><tr><th>框架</th><th>架构特征</th><th>适用场景</th></tr></thead>
+          <tbody>
+            <tr><td class="name">Mem0</td><td>向量 + 图混合</td><td>个性化、偏好追踪</td></tr>
+            <tr><td class="name">Zep / Graphiti</td><td>时序知识图谱</td><td>时序推理、客服历史</td></tr>
+            <tr><td class="name">Letta (MemGPT)</td><td>Core / Recall / Archival 分层 + sleep-time</td><td>长任务、后台反思</td></tr>
+            <tr><td class="name">LangGraph Store</td><td>Namespaced KV 接口</td><td>需完全控制、自研现有栈</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h3 style="font-size:18px;margin:0 0 12px;letter-spacing:-0.01em">LoCoMo 基准性能</h3>
+        <p style="color:var(--ink-soft);font-style:italic;font-size:14px;margin:0 0 14px">评测 90 轮+ 多会话记忆，被 Mem0/Zep/学术圈广泛引用。</p>
+        <div class="scores">
+          <div class="score-row"><span class="nm">全上下文基线</span><div class="track"><div class="fill" style="width:88%"></div></div><span class="val">88%</span></div>
+          <div class="score-row"><span class="nm">Mem0+Graph</span><div class="track"><div class="fill" style="width:84%"></div></div><span class="val">~84%</span></div>
+          <div class="score-row"><span class="nm">Mem0</span><div class="track"><div class="fill" style="width:80%"></div></div><span class="val">~80%</span></div>
+          <div class="score-row"><span class="nm">Zep</span><div class="track"><div class="fill" style="width:79%"></div></div><span class="val">~79%</span></div>
+          <div class="score-row"><span class="nm">OpenAI Memory</span><div class="track"><div class="fill" style="width:54%"></div></div><span class="val">~54%</span></div>
+        </div>
+        <p style="margin-top:12px;color:var(--ink-mute);font-size:13px;font-family:-apple-system,'PingFang SC',sans-serif">Mem0 论文报告：<strong>准确率 +26%</strong> 超越 OpenAI Memory，<strong>p95 延迟低 91%</strong>，<strong>token 减 90%</strong>——「上下文中扫描所有文本」是准确但代价高昂的上限。</p>
+      </div>
+    </div>
+
+    <blockquote>
+      <strong>选型口诀：</strong>个性化用 <strong>Mem0</strong>，时序推理用 <strong>Zep</strong>，后台反思用 <strong>Letta</strong>，需要完全可控用 <strong>LangGraph Store</strong>；企业合规上云选 Azure AI Foundry / AWS Bedrock Memory / Google Memory Bank。
+    </blockquote>
+  </div>
+</section>
+
+<section class="slide alt" id="s-mem2b">
+  <div class="slide-num"><strong>17</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">05 · 决策 ⑤ · MEMORY · 落地清单</span>
+      <h2><em>5 条最佳实践</em>与 <em>5 个反模式</em></h2>
+      <p class="lead">提炼自 Hermes / Mem0 / Letta / LangGraph / Anthropic / Cursor 公开生产实践——不是原则宣言，是「踩过坑」后的允诺与禁令。</p>
+    </div>
+
+    <div class="grid g2" style="gap: 22px;">
+      <div class="card" style="border-left: 4px solid var(--good);">
+        <span class="tag" style="color: var(--good);">DO · 最佳实践</span>
+        <h3>5 条产出于生产现场的允诺</h3>
+        <ul style="color:var(--ink-soft);margin:14px 0 0;padding-left:22px;font-family:-apple-system,'PingFang SC',sans-serif;font-size:14px;line-height:1.85;">
+          <li><strong style="color:var(--ink);">写读路径解耦</strong>——写入不立即改变 prompt；读可以被动注入或者作为工具。《Hermes 的核心设计哲学》</li>
+          <li><strong style="color:var(--ink);">记忆快照冻结</strong>——turn 内不改，保住前缀缓存命中率。可省 <code>cache_savings ≈ 75%</code>。</li>
+          <li><strong style="color:var(--ink);">记忆即工具（主动召回）</strong>——透明、可调试，用完即弃；与被动注入双轨互补。</li>
+          <li><strong style="color:var(--ink);">人类可读 + 可 diff 优先</strong>——Markdown 文件（MEMORY.md / .skills/）作为语义与程序记忆底层，向量库补长尾。</li>
+          <li><strong style="color:var(--ink);">持续评测</strong>——跨 LoCoMo / 自建 benchmark 跨 语义·情景·多跳 三维 LLM-judge；记忆质量入指标体系。</li>
+        </ul>
+      </div>
+      <div class="card" style="border-left: 4px solid var(--bad);">
+        <span class="tag" style="color: var(--bad);">DON&rsquo;T · 反模式</span>
+        <h3>5 个重复出现的败果</h3>
+        <ul style="color:var(--ink-soft);margin:14px 0 0;padding-left:22px;font-family:-apple-system,'PingFang SC',sans-serif;font-size:14px;line-height:1.85;">
+          <li><strong style="color:var(--ink);">原文入库</strong>——把每条对话全入向量库。信噪比爆炸，后续怎么调检索都救不回。</li>
+          <li><strong style="color:var(--ink);">turn 内热写</strong>——调一次工具写一条；前缀缓存命中率归零，成本上升 4–7×。</li>
+          <li><strong style="color:var(--ink);">永不遗忘</strong>——矛盾与过时记忆均衡叠加，Agent「漂移」于不同时期的自己。</li>
+          <li><strong style="color:var(--ink);">全 vec embedding</strong>——偏好查询本该一行文件读出来，却包装成距离度圣验。慢 + 不准。</li>
+          <li><strong style="color:var(--ink);">记忆不过 trust boundary</strong>——外部内容未隔离即入记忆；造成 prompt injection 形成永久后门。</li>
+        </ul>
+      </div>
+    </div>
+
+    <blockquote style="margin-top: 18px;">
+      <strong>2026 共识：</strong>记忆是 Harness 的一个<strong>子系统</strong>，不是一个外挂。它的工程化程度决定 Agent 能否被认真用于生产——不同于「记忆能不能让模型看起来更聪明」。
+    </blockquote>
+  </div>
+</section>
+
+<!-- Walkthrough Slide 1: 场景 + 真实告警 + 时间线 -->
+<section class="slide" id="s-walk1">
+  <div class="slide-num"><strong>18</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">06 · WALKTHROUGH · 场景</span>
+      <h2>场景：凌晨 3:14，<em>checkout-svc P0 告警</em></h2>
+      <p class="lead">把五个工程决策放进同一个真实事故里走一遍——告警长这样、Agent 看到了什么、做了什么、给值班 SRE 推了什么。先看触发瞬间。</p>
+    </div>
+
+    <div class="hermes-two">
+      <div>
+        <h4>T+0 · PagerDuty 告警 payload（Agent 的入口）</h4>
+        <pre class="hermes-code"><span class="com">// webhook → on-call agent /trigger</span>
+{
+  <span class="acc">"incident_id"</span>: <span class="str">"INC-2026-0503-0314"</span>,
+  <span class="acc">"severity"</span>: <span class="str">"P0"</span>,
+  <span class="acc">"service"</span>: <span class="str">"checkout-svc"</span>,
+  <span class="acc">"alert"</span>: <span class="str">"5xx ratio &gt; 5% for 3m"</span>,
+  <span class="acc">"current_value"</span>: <span class="str">"7.2%"</span>,
+  <span class="acc">"baseline"</span>: <span class="str">"0.4%"</span>,
+  <span class="acc">"region"</span>: <span class="str">"us-west-2"</span>,
+  <span class="acc">"links"</span>: {
+    <span class="acc">"grafana"</span>: <span class="str">"…/d/chk-svc"</span>,
+    <span class="acc">"runbook"</span>: <span class="str">"docs/runbooks/checkout.md"</span>
+  }
+}</pre>
+      </div>
+
+      <div>
+        <h4>T+0 → T+5min · Agent 时间线（真实顺序）</h4>
+        <pre class="hermes-code"><span class="com"># 由 trace_id=trc-9f2a 串起所有调用</span>
+T+0:00  webhook  → 创建 incident.json (state)
+T+0:03  llm.call → 路由到 "diagnose" 子流程
+T+0:08  tool.call <span class="kw">query_logs</span>  Loki, 30min, level=err
+T+0:21  tool.call <span class="kw">query_metrics</span> p99 by endpoint
+T+0:34  tool.call <span class="kw">get_recent_deploy</span> last 6h
+T+0:41  <span class="acc">↑ 命中 deploy abc123 @ T-12min</span>
+T+0:47  llm.call → 假设：deploy 引入回归
+T+0:58  tool.call <span class="kw">memory.search</span> "checkout 5xx"
+T+1:12  <span class="acc">↑ 检索到 INC-2026-0419 历史记录</span>
+T+1:30  llm.call → 结构化输出 diagnosis
+T+1:45  tool.call <span class="kw">propose_action</span> rollback abc123
+T+1:46  <span class="kw">→ Slack 卡片推送给值班 SRE</span>
+T+2:31  <span class="acc">SRE 点击 approve</span>
+T+2:33  执行 rollback (受控通道, 非 Agent 直接执行)
+T+4:50  <span class="kw">恢复</span>: 5xx ratio 回落到 0.5%</pre>
+      </div>
+    </div>
+
+    <blockquote style="margin-top:14px;font-size:14.5px;">
+      接下来 3 张幻灯，把 <strong>决策①→⑤</strong> 各自的<strong>实际工件</strong>（prompt 片段 / 工具 schema / state.json / Slack 卡片 / memory record）逐个掏出来看。
+    </blockquote>
+  </div>
+</section>
+
+<!-- Walkthrough Slide 2: 决策 ① 上下文拼装 + ② 工具 schema -->
+<section class="slide alt" id="s-walk2">
+  <div class="slide-num"><strong>19</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">06 · WALKTHROUGH · 决策 ① + ②</span>
+      <h2>决策 ①②：<em>实际</em> 拼出来的 prompt 与暴露给 Agent 的工具</h2>
+      <p class="lead">这两个决策不是抽象原则，它们最终就是 LLM 调用里的 <code>messages</code> 与 <code>tools</code> 两个字段——下面是这次事故 T+0:03 那次 LLM 调用的真实拼装结果（节选）。</p>
+    </div>
+
+    <div class="hermes-two">
+      <div>
+        <h4>决策 ① · 上下文拼装（system + user 实际内容）</h4>
+        <pre class="hermes-code"><span class="com">// system: 静态 scaffold（约 800 token, 缓存命中）</span>
+You are an SRE on-call assistant. Your job is to
+<span class="kw">diagnose</span> incidents and <span class="kw">propose</span> actions.
+Hard rules:
+  - You MUST NOT execute any write/scale/rollback.
+  - All write actions go through <span class="kw">propose_action</span>.
+  - Always cite trace_id, log lines, metric values.
+Output schema: { root_cause, evidence[],
+  suggested_action, confidence ∈ [0,1] }
+
+<span class="com">// user: 动态注入（每次告警重新拼）</span>
+&lt;alert&gt;{...payload from T+0...}&lt;/alert&gt;
+&lt;recent_deploys window="6h"&gt;
+  abc123  T-12min  feat: change tax calc rounding
+  9d4f1a  T-3h    chore: bump otel-sdk
+&lt;/recent_deploys&gt;
+&lt;runbook_excerpt rag_top_k="2"&gt;
+  ## 5xx surge → check recent deploy first
+  ## tax calc had 2 prior incidents
+&lt;/runbook_excerpt&gt;
+&lt;memory_hits k="0"&gt;待 T+0:58 再注入&lt;/memory_hits&gt;</pre>
+      </div>
+
+      <div>
+        <h4>决策 ② · tools 字段（只读 + 一个受控写）</h4>
+        <pre class="hermes-code">tools: [
+  { name: <span class="str">"query_logs"</span>,
+    desc: <span class="str">"LogQL against Loki"</span>,
+    args: { query: str, range: str } },
+
+  { name: <span class="str">"query_metrics"</span>,
+    desc: <span class="str">"PromQL"</span>,
+    args: { query: str, step: str } },
+
+  { name: <span class="str">"get_recent_deploy"</span>,
+    args: { svc: str, window: str } },
+
+  { name: <span class="str">"memory.search"</span>,
+    args: { query: str, k: int } },
+
+  <span class="acc">{ name: "propose_action",</span>
+    <span class="acc">desc: "Submit a write to HITL queue.</span>
+    <span class="acc">       NOT executed by agent.",</span>
+    <span class="acc">args: { type: "rollback|scale|toggle",</span>
+    <span class="acc">        target: str, payload: obj,</span>
+    <span class="acc">        evidence: [str], confidence: f } }</span>
+]
+<span class="com">// ❌ 反例（被明确拒绝的设计）：</span>
+<span class="com">//   { name: "shell", args: { cmd: str } }</span>
+<span class="com">//   → Agent 一旦能拼 kubectl apply, 决策④即破防</span></pre>
+      </div>
+    </div>
+
+    <blockquote style="margin-top:12px;font-size:14px;">
+      ① 决定 LLM <strong>看见什么</strong>，② 决定 LLM <strong>能动什么</strong>。两者都不是文档里的概念，而是这次调用 wire format 上字面写着的两块。
+    </blockquote>
+  </div>
+</section>
+
+<!-- Walkthrough Slide 3: 决策 ③ state.json + ④ HITL Slack 卡片 -->
+<section class="slide" id="s-walk3">
+  <div class="slide-num"><strong>20</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">06 · WALKTHROUGH · 决策 ③ + ④</span>
+      <h2>决策 ③④：<em>incident.json</em> 与 SRE 收到的 <em>Slack 卡片</em></h2>
+      <p class="lead">③ 把"做过什么"显式写在磁盘上、不让 LLM 上下文撑爆；④ 把"想做什么"扔出 Agent 边界、交给人类一键放行。两者一起决定这次 rollback <strong>不是 Agent 自己干的</strong>。</p>
+    </div>
+
+    <div class="hermes-two">
+      <div>
+        <h4>决策 ③ · incident.json（T+1:30 时刻快照）</h4>
+        <pre class="hermes-code">{
+  <span class="acc">"incident_id"</span>: <span class="str">"INC-2026-0503-0314"</span>,
+  <span class="acc">"trace_id"</span>: <span class="str">"trc-9f2a"</span>,
+  <span class="acc">"started_at"</span>: <span class="str">"2026-05-03T03:14:02Z"</span>,
+  <span class="acc">"tested_hypotheses"</span>: [
+    { h: <span class="str">"upstream payment 抖动"</span>,
+      verdict: <span class="str">"rejected"</span>,
+      evidence: <span class="str">"payment p99 平稳"</span> },
+    { h: <span class="str">"deploy abc123 引入回归"</span>,
+      verdict: <span class="str">"likely (0.82)"</span>,
+      evidence: [<span class="str">"err 起点 T-12min"</span>,
+                  <span class="str">"diff 改 tax 取整"</span>] }
+  ],
+  <span class="acc">"queried"</span>: {
+    logs: 2, metrics: 3, deploys: 1, memory: 1
+  },
+  <span class="acc">"budget"</span>: {
+    tool_calls: <span class="str">"7 / 20"</span>,
+    promql:     <span class="str">"3 / 5"</span>,
+    elapsed_s:  <span class="str">"90 / 300"</span>
+  },
+  <span class="acc">"sub_agents"</span>: []   <span class="com">// 未触发接力</span>
+}</pre>
+        <p style="font-size:13px;color:var(--ink-soft);font-family:-apple-system,'PingFang SC',sans-serif;margin-top:8px;">
+          <strong>关键</strong>：<code>tested_hypotheses</code> 与 <code>budget</code> 落盘 → 即使 LLM 上下文截断、子 Agent 接力，也不会重复跑 PromQL、不会撞到速率上限。
+        </p>
+      </div>
+
+      <div>
+        <h4>决策 ④ · 推给值班 SRE 的 Slack 卡片（T+1:46）</h4>
+        <pre class="hermes-code"><span class="com">┌─────────────────────────────────────────┐</span>
+<span class="com">│</span> 🚨 <span class="kw">Proposed: Rollback checkout-svc</span>     <span class="com">│</span>
+<span class="com">│</span> incident: INC-2026-0503-0314            <span class="com">│</span>
+<span class="com">│</span> agent confidence: <span class="acc">0.82</span>                  <span class="com">│</span>
+<span class="com">│</span>                                         <span class="com">│</span>
+<span class="com">│</span> <span class="kw">Root cause</span> (agent's hypothesis):       <span class="com">│</span>
+<span class="com">│</span>   deploy abc123 改了 tax 取整规则,         <span class="com">│</span>
+<span class="com">│</span>   边界订单触发 NaN → 500.                 <span class="com">│</span>
+<span class="com">│</span>                                         <span class="com">│</span>
+<span class="com">│</span> <span class="kw">Evidence</span>:                              <span class="com">│</span>
+<span class="com">│</span>  · err onset = T-12min ↔ deploy 时间      <span class="com">│</span>
+<span class="com">│</span>  · diff: tax_calc.go L42 round() 改向     <span class="com">│</span>
+<span class="com">│</span>  · 历史: INC-0419 同类问题(memory hit)    <span class="com">│</span>
+<span class="com">│</span>                                         <span class="com">│</span>
+<span class="com">│</span> <span class="kw">Suggested action</span>:                      <span class="com">│</span>
+<span class="com">│</span>   kubectl rollout undo deploy/checkout   <span class="com">│</span>
+<span class="com">│</span>   → 回退到 9d4f1a                         <span class="com">│</span>
+<span class="com">│</span>                                         <span class="com">│</span>
+<span class="com">│</span> [ <span class="acc">✓ Approve &amp; Execute</span> ] [ ✗ Reject ]   <span class="com">│</span>
+<span class="com">│</span> [ ✎ Modify ]   [ ⏸ Need more info ]      <span class="com">│</span>
+<span class="com">└─────────────────────────────────────────┘</span>
+<span class="com">// approve 后由 deploy-bot (受信通道) 执行,</span>
+<span class="com">// Agent 拿不到 kubectl 凭证, 只能"提案".</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Walkthrough Slide 4: 决策 ⑤ memory 写入 + 二次复用 -->
+<section class="slide alt" id="s-walk4">
+  <div class="slide-num"><strong>21</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">06 · WALKTHROUGH · 决策 ⑤</span>
+      <h2>决策 ⑤：<em>14 天后</em>同类告警，Agent 在 90 秒内出诊</h2>
+      <p class="lead">事故关闭后写一条记忆，下一次相似告警进来时 <code>memory.search</code> 直接命中——这才是"⑤ 是子系统不是外挂"的真正含义：它把这次事故的代价 <strong>分摊到未来所有同类事故</strong>。</p>
+    </div>
+
+    <div class="hermes-two">
+      <div>
+        <h4>WRITE · 复盘 Agent 在 incident close 时落盘的记忆</h4>
+        <pre class="hermes-code"><span class="com">// memory store: episodic, ttl_days=180</span>
+{
+  <span class="acc">"id"</span>: <span class="str">"mem-INC-0503"</span>,
+  <span class="acc">"kind"</span>: <span class="str">"episodic"</span>,
+  <span class="acc">"created_at"</span>: <span class="str">"2026-05-03T03:48Z"</span>,
+  <span class="acc">"service"</span>: <span class="str">"checkout-svc"</span>,
+  <span class="acc">"symptom"</span>: <span class="str">"5xx ratio surge after deploy"</span>,
+  <span class="acc">"root_cause"</span>: <span class="str">"tax_calc round() 边界 NaN"</span>,
+  <span class="acc">"fix"</span>: <span class="str">"rollback + 加 NaN guard test"</span>,
+  <span class="acc">"signals"</span>: [
+    <span class="str">"err onset == deploy time ±2min"</span>,
+    <span class="str">"diff 命中 tax_calc.*"</span>,
+    <span class="str">"特定 endpoint /checkout p99↑"</span>
+  ],
+  <span class="acc">"embedding"</span>: [...1536 dims],
+  <span class="acc">"score_decay"</span>: <span class="str">"exp(-Δdays/30)"</span>
+}
+<span class="com">// 同时 SELECT 写到 semantic store:</span>
+<span class="com">//   "service=checkout-svc 的部署相关 5xx</span>
+<span class="com">//    诊断优先看 tax_calc / round / NaN"</span></pre>
+      </div>
+
+      <div>
+        <h4>READ · T+14d 同类告警 → memory.search 命中</h4>
+        <pre class="hermes-code"><span class="com">// 新 incident INC-2026-0517 进入 T+0:18s</span>
+agent.call <span class="kw">memory.search</span>(
+  query=<span class="str">"checkout-svc 5xx 部署后"</span>,
+  k=3
+)
+→ hits: [
+  { id: <span class="str">"mem-INC-0503"</span>,  score: <span class="acc">0.91</span> },
+  { id: <span class="str">"mem-INC-0419"</span>,  score: <span class="acc">0.74</span> },
+  { id: <span class="str">"mem-INC-0312"</span>,  score: <span class="acc">0.52</span> }
+]
+
+<span class="com">// 注入到决策①的 &lt;memory_hits&gt; 段:</span>
+&lt;memory_hits k="2"&gt;
+  · 0503: tax_calc round NaN ←
+    优先 diff 这个文件
+  · 0419: 类似 deploy 回归, fix=rollback
+&lt;/memory_hits&gt;
+
+<span class="com">// 结果: agent 第 3 个工具调用就直接</span>
+<span class="com">//       看 tax_calc.go diff, 跳过假设搜索</span></pre>
+        <div style="display:flex;gap:14px;margin-top:14px;">
+          <div style="flex:1;background:var(--bg);border-radius:6px;padding:10px 14px;">
+            <div style="font-size:12px;letter-spacing:0.08em;color:var(--ink-soft);">首次诊断</div>
+            <div style="font-size:24px;font-weight:700;color:var(--bad);">2 m 31 s</div>
+          </div>
+          <div style="flex:1;background:var(--bg);border-radius:6px;padding:10px 14px;border-left:3px solid var(--good);">
+            <div style="font-size:12px;letter-spacing:0.08em;color:var(--ink-soft);">复用记忆后</div>
+            <div style="font-size:24px;font-weight:700;color:var(--good);">≈ 90 s</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <blockquote style="margin-top:14px;border-left-color:var(--accent);font-size:14.5px;">
+      <strong>把五个决策连起来回看：</strong>
+      ① 决定 LLM 看见什么 →
+      ② 决定 LLM 能动什么 →
+      ③ 让一次长事故不丢线索 →
+      ④ 让 Agent 永远不直接动生产 →
+      ⑤ 让这次事故的认知能被下次 Agent 自动继承。<br/>
+      <strong style="color:var(--accent);">缺任何一个，这套 on-call agent 都不能上岗——它们不是清单，是耦合的最小完整集。</strong>
+    </blockquote>
+  </div>
+</section>
+
+<!-- Slide 9: 实战案例 -->
+<section class="slide" id="s6">
+  <div class="slide-num"><strong>22</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">06 · CASE STUDIES</span>
+      <h2>三家公司的 <em>Harness 实战</em></h2>
+      <p class="lead">同一个模型，能否落地的差距全部体现在 Agent 外面那套系统上。</p>
+    </div>
+
+    <div class="case-grid">
+      <div class="case">
+        <span class="who">OpenAI</span>
+        <h3>Codex 百万行实验</h3>
+        <div class="kpi">
+          <span class="v">~100 万行</span>
+          <span class="v">0 行手写</span>
+          <span class="v">10× 提速</span>
+        </div>
+        <ul>
+          <li>3 人团队 5 个月，约 1500 PR，全部由 Codex Agent 编写</li>
+          <li>每个 Git worktree 独立启动应用，Agent 可独立复现 Bug</li>
+          <li>临时可观测性栈，Agent 直接查询 LogQL/PromQL 验证性能</li>
+          <li>接入 Chrome DevTools Protocol：DOM 快照、截图、导航</li>
+          <li>渐进式披露：AGENTS.md 作目录页索引，按需深入子文档</li>
+        </ul>
+        <blockquote style="margin-top:14px;font-size:14.5px;padding:14px 18px">"Humans steer. Agents execute." 问题从「试更努力」变成「Agent 缺什么能力」。</blockquote>
+      </div>
+
+      <div class="case">
+        <span class="who">LangChain</span>
+        <h3>只调 Harness 三旋钮</h3>
+        <div class="kpi">
+          <span class="v">52.8% → 66.5%</span>
+          <span class="v">+13.7 pp</span>
+          <span class="v">Top 30 → Top 5</span>
+        </div>
+        <ul>
+          <li>固定 GPT-5.2-Codex，仅调 System Prompt / Tools / Middleware</li>
+          <li>Trace Analyzer Skill 自动分析失败模式，借鉴 Boosting 思路</li>
+          <li>植入「Plan → Build → Verify → Fix」自验证循环</li>
+          <li>核心发现：最常见失败是「写完代码就停了」，没运行测试</li>
+        </ul>
+        <div class="bar-card">
+          <div class="bars">
+            <div class="bar before">52.8%<small>优化前</small></div>
+            <div class="bar after">66.5%<small>优化后</small></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="case">
+        <span class="who">Anthropic</span>
+        <h3>三 Agent 协作架构</h3>
+        <div class="kpi">
+          <span class="v">长上下文不退化</span>
+          <span class="v">自评不失真</span>
+        </div>
+        <ul>
+          <li><strong>Planner</strong>：扩展需求与边界</li>
+          <li><strong>Generator</strong>：逐步实现功能</li>
+          <li><strong>Evaluator</strong>：真实环境 QA 测试</li>
+          <li>"上下文焦虑" → 用全新干净的子 Agent 接力，类似进程重启</li>
+          <li>借鉴 GAN 思想：Evaluator 把主观判断转化为可评分标准</li>
+        </ul>
+        <blockquote style="margin-top:14px;font-size:14.5px;padding:14px 18px">关键工程原则：<strong>生产与验收必须分离</strong>。Evaluator 真实操作页面、检查交互结果。</blockquote>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 14: Takeaway (Merged with Role Shift) -->
+<section class="slide alt" id="s8">
+  <div class="slide-num"><strong>23</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">07 · TAKEAWAY</span>
+      <h2>角色转变、总结与<em>行动建议</em></h2>
+      <p class="lead">从「写代码的人」转向「设计 Agent 运行环境的人」之后，落地重点也从模型本身转向系统工程：投入比例应随之<strong>完全倒置</strong>。</p>
+    </div>
+
+    <div class="grid g2" style="margin-bottom: 22px;">
+      <div class="card">
+        <span class="tag">FROM → TO</span>
+        <h3>角色转变对照</h3>
+        <ul style="color:var(--ink-soft);margin:14px 0 0;padding-left:22px;font-family:-apple-system,'PingFang SC',sans-serif;font-size:15.5px;line-height:2">
+          <li><span class="arrow-from">写代码</span> → <span class="arrow-to">设计环境与指定意图</span></li>
+          <li><span class="arrow-from">调试代码</span> → <span class="arrow-to">为 Agent 构建反馈循环</span></li>
+          <li><span class="arrow-from">代码评审</span> → <span class="arrow-to">管理 Agent-to-Agent 评审系统</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="tag">CORE STACK</span>
+        <h3>Harness Engineer 核心技能</h3>
+        <p style="margin-bottom:14px;font-family:-apple-system,'PingFang SC',sans-serif;line-height:2">
+          Context Engineering · 工具编排 · 状态管理<br/>
+          验证与安全 · 生命周期管理 · Human-in-the-Loop
+        </p>
+        <p style="color:var(--accent-2);font-size:14.5px;margin-top:12px;font-style:italic;font-family:-apple-system,'PingFang SC',sans-serif;border-top:1px dashed var(--line);padding-top:14px">
+          行动路径：约束文档 → 验证循环 → 状态持久化 → 可观测性 → HITL 门控
+        </p>
+      </div>
+    </div>
+
+    <div class="invest">
+      <div class="b h">
+        <div class="pct">50–80%</div>
+        <div class="name">Harness Engineering</div>
+        <div class="lbl">执行稳定性保障</div>
+      </div>
+      <div class="b c">
+        <div class="pct">15–30%</div>
+        <div class="name">Context Engineering</div>
+        <div class="lbl">信息供给优化</div>
+      </div>
+      <div class="b p">
+        <div class="pct">5–15%</div>
+        <div class="name">Prompt Engineering</div>
+        <div class="lbl">语言设计调优</div>
+      </div>
+    </div>
+
+    <div class="checklist">
+      <h3>审视你的 Agent 系统</h3>
+      <ul>
+        <li>任务拆解是否清晰？复杂目标是否分解为可控步骤？</li>
+        <li>状态管理是否到位？执行进度与中间结果是否可追踪？</li>
+        <li>是否有<strong>独立</strong>的验证 / 评估机制？</li>
+        <li>失败后能否自动恢复？重试 / 切路径 / 回滚是否覆盖？</li>
+        <li>每条 AGENTS.md 规则是否能追溯到具体的失败案例？</li>
+        <li>是否提供 Agent 可直接查询的可观测性接口？</li>
+      </ul>
+    </div>
+
+    <blockquote>
+      "每当 Agent 犯一个错误，你不是告诉它下次做好，而是改变系统，让这个错误在结构上更难再犯。"
+      <cite>— Mitchell Hashimoto（Terraform / Ghostty 创始人）</cite>
+    </blockquote>
+
+    <p style="margin-top: 14px; color: var(--ink-soft); font-size: 15px; font-style: italic; font-family: -apple-system, 'PingFang SC', sans-serif;">
+      当 Agent 出问题时，修复方案几乎从来不是「<em>更努力一点</em>」，而是确定它<strong>缺了什么结构性能力</strong>——这是 Harness Engineering 全部哲学的浓缩。
+    </p>
+  </div>
+</section>
+
+<!-- Slide 15: References -->
+<section class="slide" id="s9">
+  <div class="slide-num"><strong>24</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">08 · REFERENCES</span>
+      <h2>参考资料</h2>
+    </div>
+
+    <div class="refs">
+      <div><span>[1]</span>Harness engineering: leveraging Codex in an agent-first workflow — OpenAI</div>
+      <div><span>[2]</span>Improving Deep Agents with harness engineering — LangChain Blog</div>
+      <div><span>[3]</span>Effective harnesses for long-running agents — Anthropic</div>
+      <div><span>[4]</span>Harness Engineering: The Complete Guide to Building Stable Agents</div>
+      <div><span>[5]</span>OpenAI Introduces Harness Engineering: Codex Agents Practice</div>
+      <div><span>[6]</span>Harness design for long-running application development</div>
+      <div><span>[7]</span>Harness Engineering — The New Discipline Powering Software</div>
+      <div><span>[8]</span>Prompt vs Context vs Harness Engineering — Princeton 研究</div>
+      <div><span>[9]</span>Memory in the Age of AI Agents — arXiv 2512.13564</div>
+      <div><span>[10]</span>State of AI Agent Memory 2026 / LoCoMo Benchmark</div>
+      <div><span>[11]</span>Best AI Agent Memory Systems in 2026: 8 Frameworks Compared</div>
+      <div><span>[12]</span>ENGRAM: Effective, Lightweight Memory Orchestration</div>
+      <div><span>[13]</span>Hermes Agent — Nous Research（自我进化 Agent 架构与代码分析）</div>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 16: Hermes Case Study -->
+<section class="slide alt" id="s-hermes">
+  <div class="slide-num"><strong>25</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">06 · CASE · HERMES AGENT</span>
+      <h2>Hermes：八层架构的<em>分层评估</em></h2>
+      <p class="lead">Nous Research 开源的自我进化 Agent——按精细化分层（含 L3a/L3b 与 L5a/L5b 拆分）逐层对照真实代码：5 层达工业级、3 层是当下开源 Harness 的共性演进方向。</p>
+    </div>
+
+    <table class="hermes-map">
+      <thead>
+        <tr><th style="width:70px">层</th><th style="width:120px">Harness 职责</th><th>Hermes 实现</th><th style="width:180px">缺口 / 评价</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="lyr">L1</span></td>
+          <td class="layer-name">上下文管理</td>
+          <td class="impl"><strong>Prompt Builder</strong> 自动注入 .hermes.md / AGENTS.md · <strong>渐进式披露</strong>（技能列表→详情按需）· <strong>18 种注入</strong>检测 + Unicode 隐形字符扫描</td>
+          <td class="impl" style="color:var(--accent-2)"><strong>✓ 工业级</strong>　教科书示例</td>
+        </tr>
+        <tr>
+          <td><span class="lyr">L2</span></td>
+          <td class="layer-name">工具系统</td>
+          <td class="impl"><strong>自注册 Registry</strong> · <strong>40+ 工具 + MCP</strong> 动态扩展 · <strong>并行只读工具</strong>批处理 · 子代理委托（≤3 并发 / 深度 2）</td>
+          <td class="impl" style="color:var(--accent-2)"><strong>✓ 工业级</strong>　可直接复用</td>
+        </tr>
+        <tr>
+          <td><span class="lyr">L4</span></td>
+          <td class="layer-name">记忆与状态</td>
+          <td class="impl"><strong>五层记忆架构</strong>：Agent 循环触发 → MemoryManager → MemoryStore (fcntl 锁 + 原子写) → 8 个外部 Provider → session_search FTS5 跨会话召回</td>
+          <td class="impl" style="color:var(--accent-2)"><strong>✓ 工业级</strong>　与第 5 章直接呼应</td>
+        </tr>
+        <tr>
+          <td><span class="lyr" style="background:var(--accent);">L3a</span></td>
+          <td class="layer-name">推理编排</td>
+          <td class="impl">线性 ReAct 循环 · 工具 → 观察 → 下一步</td>
+          <td class="impl" style="color:var(--accent)"><strong>△ 部分</strong>　缺<strong>反思 / 自检 / 切路径</strong></td>
+        </tr>
+        <tr>
+          <td><span class="lyr" style="background:var(--accent);">L3b</span></td>
+          <td class="layer-name">运行时调度</td>
+          <td class="impl"><strong>IterationBudget</strong>（预算压力注入工具结果）· Smart Routing · Credential Pool · Fallback Chain（429→60min, 402→24h）</td>
+          <td class="impl" style="color:var(--accent-2)"><strong>✓ 工业级</strong>　可直接复用</td>
+        </tr>
+        <tr>
+          <td><span class="lyr" style="background:var(--accent-2);">L5a</span></td>
+          <td class="layer-name">观测与审计</td>
+          <td class="impl">SessionDB(SQLite + FTS5) · 每次 API call 的 token/cache/cost · usage insights · 集中日志（带 redaction）</td>
+          <td class="impl" style="color:var(--accent-2)"><strong>✓ 中强</strong>　日志栈完整</td>
+        </tr>
+        <tr>
+          <td><span class="lyr" style="background:var(--accent-2);">L5b</span></td>
+          <td class="layer-name">评估与验收</td>
+          <td class="impl"><strong>离线强：</strong><code>environments/</code> 里 TB2 / TBLite / SWE / WebResearch / YC-Bench 都有真 reward。<br><strong>在线弱：</strong>主对话路径不按用户目标跑 verifier。</td>
+          <td class="impl" style="color:var(--accent)"><strong>△ 二八开</strong>　离线 ✓，<br>在线验收缺位</td>
+        </tr>
+        <tr>
+          <td><span class="lyr">L6</span></td>
+          <td class="layer-name">约束与恢复</td>
+          <td class="impl"><strong>40+ 危险命令模式</strong> · <strong>12 种威胁模式</strong>扫描 · SSRF + 敏感路径保护 · LLM 智能审批 + 永久白名单</td>
+          <td class="impl" style="color:var(--accent)"><strong>△ 半边天</strong>　约束 ✓，<br>但<strong>失败回滚 / 断点续跑</strong>缺位</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <blockquote style="margin-top: 18px;">
+      <strong>关键启示：</strong>Hermes 的工业级能力层（L1 / L2 / L3b / L4 / L5a）有一条共同主线——「<em>不破坏前缀缓存</em>」的工程取舍：冻结记忆快照、预算压力注入到工具结果而非消息体、并行批处理按路径作用域追踪。而待进化的三层（L3a / L5b / L6）代表了当下开源 Harness 的<strong>共性前沿</strong>：推理编排、在线验收、失败恢复——这正是将 Hermes 运用于生产场景时需要补齐的关键能力域。
+    </blockquote>
+  </div>
+</section>
+
+<!-- Slide 17: Hermes 强项 - L1 上下文 + L2 工具 -->
+<section class="slide" id="s-hermes-strong1">
+  <div class="slide-num"><strong>26</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">06 · CASE · HERMES · L1 + L2</span>
+      <h2>强项一：<em>上下文 & 工具</em>的工程细节</h2>
+      <p class="lead">L1 / L2 决定了 Agent 第一次开口前的「装备水平」。Hermes 在这两层做的事情，几乎可以原样照搬到任何严肃的 Agent 项目里。</p>
+    </div>
+
+    <div class="hermes-two">
+      <div>
+        <h4 class="strong">L1 上下文管理</h4>
+        <ul>
+          <li><strong>分层 Prompt Builder</strong>：System Identity → Skills Index → Memory Snapshot → User Project (.hermes.md / AGENTS.md / .cursorrules) → Tool Schemas → 对话历史。每一层都可独立缓存。</li>
+          <li><strong>渐进式披露 (Progressive Disclosure)</strong>：默认只塞「技能列表标题」，调用 <code>read_skill</code> 才展开详情——避免 200K context 被启动塞满。</li>
+          <li><strong>注入防御纵深</strong>：18 种 prompt injection 模式 + Unicode 隐形字符（U+200B/U+E0000 等 tag 字符）+ Base64 走私 + 多语言绕过。所有外部内容（URL fetch / file read）走同一过滤器。</li>
+          <li><strong>消息规范化</strong>：所有 Provider（Anthropic / OpenAI / OpenRouter）的消息差异收敛到 <code>CanonicalMessage</code>，保证切换模型时上下文不漂移。</li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="strong">L2 工具系统</h4>
+        <ul>
+          <li><strong>装饰器自注册</strong>：<code>@register_tool</code> 在 import 时把工具元数据写入全局 Registry，<strong>零配置发现</strong>，新增工具只需 import 一个文件。</li>
+          <li><strong>MCP 协议作为外部入口</strong>：动态发现远程工具，schema 自动转换；与内置工具同样走 Registry，<strong>权限模型统一</strong>。</li>
+          <li><strong>并行只读批处理</strong>：标记 <code>read_only=True</code> 的工具自动并发执行（如多文件读取、grep + 列目录），写工具串行；通过路径作用域追踪避免 race。</li>
+          <li><strong>子代理委托</strong>：通过 <code>subagent</code> 工具开新会话——最多 3 路并发、深度 ≤ 2，独立 IterationBudget，结果回吐摘要；天然契合 L3 的预算切片。</li>
+          <li><strong>6 种执行环境</strong>：local / Docker / SSH / Modal / Daytona / Singularity 共享同一 Tool Schema，<strong>开发到生产无缝换底</strong>。</li>
+        </ul>
+      </div>
+    </div>
+
+    <blockquote style="margin-top: 16px;">
+      <strong>可借鉴模式：</strong><em>Registry + 装饰器</em>是把工具系统做大的关键——不靠中心化注册表，而是 import 时分布式注册，工具数量增长时不需要改主流程任何一行。
+    </blockquote>
+  </div>
+</section>
+
+<!-- Slide 18: Hermes 强项 - L4 五层记忆架构 -->
+<section class="slide alt" id="s-hermes-mem">
+  <div class="slide-num"><strong>27</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">06 · CASE · HERMES · L4 MEMORY</span>
+      <h2>强项二：<em>五层记忆架构</em>——教科书级实现</h2>
+      <p class="lead">这是 Hermes 最值得逐行学习的部分，也和本文第 5 章的记忆框架完全对应。它把「让 Agent 能记住事」拆成了五个独立、可替换、可降级的层。</p>
+    </div>
+
+    <div class="hermes-flow">
+      <div class="step">
+        <div class="tier">Tier 1 · TRIGGER</div>
+        <div class="name">Agent 循环触发器</div>
+        <div class="det">每 <strong>10 轮 nudge</strong> 一次「该不该记？」；<strong>压缩前 flush</strong>，确保被淘汰的对话不丢关键事实；用户显式 <code>/remember</code> 立即写入。</div>
+      </div>
+      <div class="step">
+        <div class="tier">Tier 2 · ORCHESTRATOR</div>
+        <div class="name">MemoryManager（编排层）</div>
+        <div class="det">不直接落盘，只负责<strong>路由</strong>：决定写到 MemoryStore（项目级）/ ExternalProvider（用户级）/ 仅会话内（短期）。提供统一 <code>recall()</code> 接口，下游层对 Agent 透明。</div>
+      </div>
+      <div class="step">
+        <div class="tier">Tier 3 · LOCAL STORE</div>
+        <div class="name">MemoryStore：MEMORY.md / USER.md</div>
+        <div class="det"><strong>fcntl 文件锁 + 临时文件原子写</strong>（write→rename），保证多进程并发安全；纯文本 Markdown，<strong>人类可审计、可手改、可 git diff</strong>——这是 Honcho/Mem0 类黑盒服务给不了的。</div>
+      </div>
+      <div class="step">
+        <div class="tier">Tier 4 · EXTERNAL PROVIDERS</div>
+        <div class="name">8 个外部记忆插件（Mem0 / Honcho / Letta / Zep …）</div>
+        <div class="det"><strong>Provider 容错隔离</strong>：任一外部服务故障不阻塞 Agent；统一 <code>save() / retrieve()</code> 接口，允许同时启用多个进行 A/B；返回结果带来源标记。</div>
+      </div>
+      <div class="step">
+        <div class="tier">Tier 5 · CROSS-SESSION RECALL</div>
+        <div class="name">session_search · SQLite FTS5</div>
+        <div class="det">所有历史会话写入 <code>messages_fts</code> 全文索引，工具 <code>session_search("query")</code> 可被 Agent 主动调用——<strong>记忆变成一个工具</strong>，而不是默默注入的 prompt。</div>
+      </div>
+    </div>
+
+    <blockquote style="margin-top: 14px;">
+      <strong>关键设计哲学：</strong>记忆的「<em>读路径</em>」（Tier 5 主动 search）和「<em>写路径</em>」（Tier 1 触发）<strong>解耦</strong>，写不一定立即影响读。这避免了「写一条记忆就污染所有未来 prompt」的常见失败模式。
+    </blockquote>
+  </div>
+</section>
+
+<!-- Slide 19: Hermes 五层记忆 · 模拟实例 -->
+<section class="slide" id="s-hermes-mem-demo">
+  <div class="slide-num"><strong>28</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">06 · CASE · HERMES · MEMORY DEMO</span>
+      <h2>五层记忆 · <em>跨会话场景模拟</em></h2>
+      <p class="lead">假设用户 Lei 在三个不同时间点与 Agent 协作 <code>alpha-svc</code> 项目。看每个 Tier 在每一步具体做了什么、写了什么文件、读了什么。</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 10px;">
+
+      <!-- Scenario 1: 项目搭建（写入路径） -->
+      <div style="background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--accent-2); border-radius: 5px; padding: 14px 18px;">
+        <div style="font-family: -apple-system, 'PingFang SC', sans-serif; font-size: 13px;">
+          <span style="color: var(--accent-2); font-weight: 700;">① 周一 10:00 · Session #abc</span>
+          <span style="color: var(--ink-mute);"> · 项目搭建（<strong style="color: var(--accent);">写路径</strong>）</span>
+        </div>
+        <div style="font-family: ui-monospace, monospace; color: var(--ink); font-size: 13px; margin: 6px 0; background: var(--bg); padding: 6px 10px; border-radius: 3px;">
+          &gt; User: "搭一个 FastAPI 项目，叫 alpha-svc，端口 8080"
+        </div>
+        <div style="font-family: -apple-system, 'PingFang SC', sans-serif; font-size: 13px; color: var(--ink-soft); line-height: 1.7;">
+          ⋯ Agent 工作 8 轮，生成 src/、写测试、跑通 ⋯<br>
+          <span class="lyr">T1</span>　第 10 轮 <code>nudge</code>："本轮有值得记的事吗？" → Agent 决定：是<br>
+          <span class="lyr">T2</span>　MemoryManager 路由：<em>项目事实</em> → T3；<em>个人偏好</em> → T4<br>
+          <span class="lyr">T3</span>　原子写入 <code>./alpha-svc/.hermes/MEMORY.md</code>：
+          <div class="hermes-code" style="font-size: 11.5px; margin: 4px 0;">## Project: alpha-svc
+- Stack: FastAPI + PostgreSQL
+- Port: 8080
+- Layout: src/api, src/db, tests/</div>
+          <span class="lyr">T4</span>　Mem0 写用户级偏好（跨项目）：<code>linter=ruff, test=pytest, formatter=black</code><br>
+          <span class="lyr">T5</span>　所有消息落入 SessionDB（<code>messages_fts</code> 全文索引）
+        </div>
+      </div>
+
+      <!-- Scenario 2: 跨会话延续（启动注入） -->
+      <div style="background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 5px; padding: 14px 18px;">
+        <div style="font-family: -apple-system, 'PingFang SC', sans-serif; font-size: 13px;">
+          <span style="color: var(--accent); font-weight: 700;">② 周三 09:30 · Session #def</span>
+          <span style="color: var(--ink-mute);"> · 新进程冷启动（<strong>启动注入</strong>）</span>
+        </div>
+        <div style="font-family: ui-monospace, monospace; color: var(--ink); font-size: 13px; margin: 6px 0; background: var(--bg); padding: 6px 10px; border-radius: 3px;">
+          &gt; User: "继续昨天的活，加个 /health endpoint"
+        </div>
+        <div style="font-family: -apple-system, 'PingFang SC', sans-serif; font-size: 13px; color: var(--ink-soft); line-height: 1.7;">
+          <span class="lyr">T3</span>　Hermes 启动 → 读 <code>./alpha-svc/.hermes/MEMORY.md</code> → <strong>冻结快照</strong>注入 system prompt<br>
+          <span class="lyr">T4</span>　拉 Mem0 user.preferences → 拼到 system prompt 末尾<br>
+          <span style="color: var(--ink); font-weight: 600;">→ Agent 已知 FastAPI / 8080 / ruff / pytest，<em>无需追问任何项目细节</em></span><br>
+          <span style="color: var(--ink-mute); font-size: 12px;">（注：T1/T2/T5 此刻不参与；T3+T4 是「被动注入」路径——只在启动那一刻发生，turn 内冻结不变 → 缓存命中）</span>
+        </div>
+      </div>
+
+      <!-- Scenario 3: 跨会话查询（按需召回） -->
+      <div style="background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--accent-3, #4a7cc9); border-radius: 5px; padding: 14px 18px;">
+        <div style="font-family: -apple-system, 'PingFang SC', sans-serif; font-size: 13px;">
+          <span style="color: var(--accent-3, #4a7cc9); font-weight: 700;">③ 周五 14:00 · Session #ghi</span>
+          <span style="color: var(--ink-mute);"> · 跨会话查询（<strong style="color: var(--accent-3, #4a7cc9);">按需召回路径</strong>）</span>
+        </div>
+        <div style="font-family: ui-monospace, monospace; color: var(--ink); font-size: 13px; margin: 6px 0; background: var(--bg); padding: 6px 10px; border-radius: 3px;">
+          &gt; User: "上次那个 /health 端点用的什么状态码来着？"
+        </div>
+        <div style="font-family: -apple-system, 'PingFang SC', sans-serif; font-size: 13px; color: var(--ink-soft); line-height: 1.7;">
+          Agent 判断：MEMORY.md 里没有这条，需要查历史 → 主动调用工具：<br>
+          <span class="lyr">T5</span>　<code>session_search(query="health endpoint")</code> → SQLite FTS5 <code>MATCH</code> 命中 Session #def msg_id=12<br>
+          <span class="lyr">T5</span>　返回片段：<code>"return JSONResponse(status_code=200, content={'status': 'ok'})"</code><br>
+          <span style="color: var(--ink); font-weight: 600;">→ Agent 答："200，body 是 <code>{status: ok}</code>"</span><br>
+          <span style="color: var(--ink-mute); font-size: 12px;">（注：T5 是「主动召回」——不进 system prompt，只作为工具结果返回；用完即弃，不污染未来 turn 的前缀缓存）</span>
+        </div>
+      </div>
+
+    </div>
+
+    <blockquote style="margin-top: 14px;">
+      <strong>三条路径的分工：</strong><span class="lyr" style="background: var(--accent-2);">写</span> T1+T2+T3+T4 在<em>本会话内</em>触发，决定记什么、放哪儿；<span class="lyr">读·被动</span> T3+T4 仅在<em>启动一刻</em>注入，turn 内冻结保前缀缓存；<span class="lyr" style="background: var(--accent-3, #4a7cc9);">读·主动</span> T5 是 Agent 的工具，<em>用时检索、用完即弃</em>。一条记忆能同时被「自动注入」和「主动 search」两种方式访问，就是 Hermes 记忆架构的核心张力。
+    </blockquote>
+
+  </div>
+</section>
+
+<!-- Slide 20: Hermes 工程取舍 - 不破坏前缀缓存 -->
+<section class="slide" id="s-hermes-cache">
+  <div class="slide-num"><strong>29</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">06 · CASE · HERMES · ENGINEERING</span>
+      <h2>核心工程哲学：<em>不破坏前缀缓存</em></h2>
+      <p class="lead">Hermes 的几乎所有"奇怪"设计决策，都能被一句话解释：<strong>保住 Anthropic / OpenAI 的前缀缓存命中率</strong>。这是把 Agent 从「Demo」推到「能跑真实负载」的关键经济门槛。</p>
+    </div>
+
+    <div class="hermes-stats">
+      <div class="hermes-stat"><div class="v">~75%</div><div class="l">Anthropic prompt cache 节省<br>（4 个 cache 断点冻结快照）</div></div>
+      <div class="hermes-stat"><div class="v">50%</div><div class="l">触发上下文压缩<br>（头/尾保护 + 中间摘要）</div></div>
+      <div class="hermes-stat"><div class="v">15+</div><div class="l">消息平台<br>（Telegram / Slack / Signal …）</div></div>
+      <div class="hermes-stat"><div class="v">6</div><div class="l">执行环境后端<br>（local / Docker / Modal …）</div></div>
+    </div>
+
+    <div style="margin-top: 24px; display: grid; grid-template-columns: 1fr; gap: 16px;">
+      <div>
+        <div style="font-size: 13px; font-weight: 700; color: var(--accent); font-family: -apple-system, 'PingFang SC', sans-serif; margin-bottom: 4px;">
+          决策 ① · 预算压力<strong style="color:var(--ink)">注入工具结果</strong>，不写消息体
+        </div>
+        <div style="font-size: 12.5px; color: var(--ink-soft); margin-bottom: 6px; font-family: -apple-system, 'PingFang SC', sans-serif;">
+          消息体一变，整个前缀缓存失效。把"还剩几轮"塞到 tool_result 里，对模型可见，对缓存透明。
+        </div>
+        <div class="hermes-code"><span class="kw">def</span> tool_result_with_budget(result, budget):
+    <span class="kw">if</span> budget.remaining &lt; <span class="acc">5</span>:
+        result += <span class="str">f"\n[budget warning: {budget.remaining} left]"</span>
+    <span class="kw">return</span> result  <span class="com"># ← 加在 tool_result 里，前缀不动</span></div>
+      </div>
+
+      <div>
+        <div style="font-size: 13px; font-weight: 700; color: var(--accent); font-family: -apple-system, 'PingFang SC', sans-serif; margin-bottom: 4px;">
+          决策 ② · 记忆<strong style="color:var(--ink)">冻结快照</strong>，turn 内绝不改
+        </div>
+        <div style="font-size: 12.5px; color: var(--ink-soft); margin-bottom: 6px; font-family: -apple-system, 'PingFang SC', sans-serif;">
+          一轮内可能并发调多个工具，若中途记忆改了，每次 build prompt 都是新前缀，cache 命中率归零。
+        </div>
+        <div class="hermes-code">memory_snapshot = freeze(memory_store.read_all())  <span class="com"># 整个 turn 不变</span>
+<span class="kw">for</span> tool_call <span class="kw">in</span> tool_calls:
+    prompt = build(memory_snapshot, ...)  <span class="com"># 同一前缀 → 缓存命中</span></div>
+      </div>
+
+      <div>
+        <div style="font-size: 13px; font-weight: 700; color: var(--accent); font-family: -apple-system, 'PingFang SC', sans-serif; margin-bottom: 4px;">
+          决策 ③ · 压缩在<strong style="color:var(--ink)">固定阈值边界</strong>，不漂移
+        </div>
+        <div style="font-size: 12.5px; color: var(--ink-soft); margin-bottom: 6px; font-family: -apple-system, 'PingFang SC', sans-serif;">
+          每轮"渐进式裁剪"会让前缀微变，永远 cache miss。改成只在 50% 阈值触发的硬切，让 15+ 轮共享同一缓存。
+        </div>
+        <div class="hermes-code"><span class="kw">def</span> compress_at_threshold():
+    <span class="kw">if</span> tokens &gt; window * <span class="acc">0.5</span>:           <span class="com"># 只在硬阈值触发</span>
+        <span class="kw">return</span> keep_head(<span class="acc">10</span>) + summarize_middle() + keep_tail(<span class="acc">20</span>)</div>
+      </div>
+    </div>
+
+    <p style="font-size: 13.5px; color: var(--ink-soft); margin-top: 18px; font-family: -apple-system, 'PingFang SC', sans-serif;">
+      <strong>三条原则一以贯之：</strong>① 任何会变的状态都不进 system prompt；② 写记忆时<strong>先 freeze 再 build</strong>，turn 内绝不改快照；③ 只在<strong>固定边界</strong>压缩（不触发就不动），让 cache 稳定 15+ 轮。
+    </p>
+  </div>
+</section>
+
+<!-- Slide 21: Hermes 三大短板 -->
+<section class="slide alt" id="s-hermes-gap">
+  <div class="slide-num"><strong>30</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">06 · CASE · HERMES · FRONTIERS</span>
+      <h2>从研究型到生产级：<em>L3a / L5b / L6 的演进方向</em></h2>
+      <p class="lead">按精细化分层（v2）观察，Hermes 的待进化能力精确落在 <strong>L3a 推理编排</strong>、<strong>L5b 在线验收</strong>、<strong>L6 失败恢复</strong>三层——这也代表了当下开源 Harness 的<strong>共性前沿</strong>，是工程团队在生产化落地时需要补齐的关键能力。</p>
+    </div>
+
+    <table class="hermes-map">
+      <thead>
+        <tr><th style="width:70px">层</th><th style="width:160px">Hermes 现状</th><th>缺什么</th><th style="width:210px">补法建议</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="lyr" style="background:var(--accent);">L3a</span></td>
+          <td class="layer-name">推理编排</td>
+          <td class="impl">线性 ReAct 循环——没有<strong>反思 (reflection)</strong> 节点、不会<strong>切换路径</strong>、不会<strong>主动停下来求证</strong>。一旦判断错方向，只会在错误轨道上烧光 IterationBudget。</td>
+          <td class="impl"><strong>外挂 Critic / Verifier</strong>：每 N 步插入「目标-进展」自检；引入 plan-then-act 双阶段；接一个独立的 evaluator agent。</td>
+        </tr>
+        <tr>
+          <td><span class="lyr" style="background:var(--accent);">L5b</span></td>
+          <td class="layer-name">在线验收</td>
+          <td class="impl">
+            <strong style="color:var(--accent-2)">L5a 观测层 ✓：</strong>SessionDB · token/cache/latency/cost · usage insights · 日志（rotation + redact）已是中强水平。<br>
+            <strong style="color:var(--accent-2)">L5b 离线评估 ✓：</strong><code>environments/</code> 里 TB2 / TBLite / SWE / WebResearch / YC-Bench 都有真 reward。<br>
+            <strong style="color:var(--accent)">L5b 在线验收 ✗：</strong>主对话路径只看 finish_reason / tool error，<strong>不会按用户目标</strong>跑验收器；缺 trace/span 因果归因；无 OTel / Prometheus / Grafana 等生产级仪表。
+          </td>
+          <td class="impl">
+            <strong>把 env 里的 evaluator 拉到主路径</strong>：每个任务声明 success criteria → 结束自动跑 verifier；接 OpenTelemetry 出 trace/metrics → Grafana / Jaeger；对 Trajectory 做 LLM-as-judge 标注。
+          </td>
+        </tr>
+        <tr>
+          <td><span class="lyr">L6</span></td>
+          <td class="layer-name">事前约束 + 审批</td>
+          <td class="impl">事前防御做得好，但<strong>失败后是哑的</strong>：没有快照回滚、没有事务边界、没有断点续跑。一次大写入挂了，状态可能半途。</td>
+          <td class="impl"><strong>事务 / Sandbox 化</strong>：写文件先 commit 到临时分支或 overlay FS；关键 step 落 checkpoint；崩溃后从最近 checkpoint 重放工具调用。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="margin-top: 14px; background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--accent-2); border-radius: 4px; padding: 12px 18px; font-size: 12.5px; color: var(--ink-soft); font-family: -apple-system, 'PingFang SC', sans-serif;">
+      <strong style="color: var(--ink);">L5 子项细评：</strong>
+      <span style="color: var(--accent-2);">观测 / 审计 7</span> ·
+      <span style="color: var(--accent-2);">离线 Benchmark 8</span> ·
+      <span style="color: var(--accent);">在线验收 2</span> ·
+      <span style="color: var(--accent);">自动测试闭环 3</span> ·
+      <span style="color: var(--accent);">错误归因 4</span> ·
+      <span style="color: var(--accent);">生产可观测性 4</span>　
+      <span style="color: var(--ink-mute);">(满分 10)</span>　
+      —— Hermes 更像「研究/训练型 Agent 的 eval+observability」，而不是「生产 Harness 的 runtime verification 层」。
+    </div>
+
+    <blockquote style="margin-top: 14px;">
+      <strong>落地路线建议：</strong>① 直接复用 Hermes 的 L1 / L2 / L4 作为基线 → ② <strong>将 <code>environments/</code> 中的 evaluator 模式迁移至主对话路径</strong>，并接入 OpenTelemetry 形成在线观测闭环 → ③ 在 L3 引入 reflection / replanning → ④ 最后在 L6 接入 Sandbox 与 checkpoint。<strong>该顺序不可颠倒</strong>——若在缺乏在线验收闭环的前提下先加 reflection，只会让失败变得更难定位。
+    </blockquote>
+  </div>
+</section>
+
+<!-- Slide 22: PCB Design Agent · 总览 -->
+<section class="slide" id="s-pcb1">
+  <div class="slide-num"><strong>31</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">专题 · PCB DESIGN AGENT · 实战演练 · WIP</span>
+      <h2>PCB Design Agent：<em>五技能调度引擎</em>的总览</h2>
+      <p class="lead">把 Harness 工程理念落到一个真实的硬件设计场景——以 PDF / Excel / 网表 / 文本 / DCDC 五个技能为执行单元，由调度引擎做路由、规划、评估与续采修复。<strong>本章为持续整理中的工程实践（WIP）</strong>，先呈现已成型的总体结构。</p>
+    </div>
+
+    <div class="layers" style="grid-template-columns: repeat(5, 1fr);">
+      <div class="layer"><span class="n">L2</span><h4 style="font-size:15px;">PDF 搜索</h4><p style="font-size:12.5px;">器件手册 / 规格书检索</p></div>
+      <div class="layer"><span class="n">L2</span><h4 style="font-size:15px;">Excel 搜索</h4><p style="font-size:12.5px;">BOM / 测试记录查询</p></div>
+      <div class="layer"><span class="n">L2</span><h4 style="font-size:15px;">网表搜索</h4><p style="font-size:12.5px;">连线 / 节点 / 器件关系</p></div>
+      <div class="layer"><span class="n">L2</span><h4 style="font-size:15px;">文本搜索</h4><p style="font-size:12.5px;">设计笔记 / 邮件资料</p></div>
+      <div class="layer" style="border-color:var(--accent);"><span class="n" style="background:var(--accent);">L2+</span><h4 style="font-size:15px;">DCDC 工程分析</h4><p style="font-size:12.5px;">Buck 拓扑 / 阈值规则推断</p></div>
+    </div>
+
+    <div class="hermes-flow" style="margin-top:18px;">
+      <div class="step">
+        <div class="tier">L3a · PLANNING</div>
+        <div class="name">调度引擎：路由 → 规划 → 评估 → 续采/修复</div>
+        <div class="det">单次规划：一次模型调用同时决定 <strong>选哪些技能 + 用什么命令 + 用什么参数</strong>，避免「先选技能再二次规划」的双跳延迟。多轮控制由 evidence 评估驱动，<code>max_rounds</code> / <code>max_total_actions=12</code> / <code>max_followup_actions=3</code> 三层预算护栏。</div>
+      </div>
+      <div class="step">
+        <div class="tier">L4 · EVIDENCE</div>
+        <div class="name">证据层：执行日志 → 证据快照 → 追踪日志</div>
+        <div class="det">完整执行日志只在本地保留；进入 assessment 与 follow-up 的<strong>只是压缩后的 evidence snapshot</strong>（命令计数、技能触达、关键摘录），保住模型上下文的有效信息密度，也保住前缀缓存命中率。</div>
+      </div>
+      <div class="step">
+        <div class="tier">L5b · ANSWER MODE</div>
+        <div class="name">回答层：三种模式共享同一次采证</div>
+        <div class="det"><strong>strict_evidence</strong>（只引用日志）/ <strong>evidence_plus_guidance</strong>（标注的工程建议）/ <strong>heuristic_inference</strong>（类 Cursor 经验推断 + 显式不确定性）—— 三模式跑同一份 evidence，不重复采集，可直接对比风格。</div>
+      </div>
+    </div>
+
+    <blockquote style="margin-top: 16px;">
+      <strong>真实演练任务：</strong>「UD1 的 DCDC 输出实测冲击电流 5.12A，要求 < 3A——若证据不足，请明确证据边界并给出下一步最值得验证的动作。」<br>
+      <span style="color:var(--ink-mute);font-size:14px;">这正是 Harness 中「Sensors 反馈 + 自我归因」的真实落地：Agent 必须区分「已被证据证明」「高概率推断」「经验建议」三层结论。</span>
+    </blockquote>
+  </div>
+</section>
+
+<!-- Slide 23: PCB Design Agent · 工程取舍 -->
+<section class="slide alt" id="s-pcb2">
+  <div class="slide-num"><strong>32</strong> / 32</div>
+  <div class="slide-inner">
+    <div class="sec-head">
+      <span class="eyebrow">专题 · PCB DESIGN AGENT · 工程取舍 · WIP</span>
+      <h2>四个<em>调度优化</em>与未完成清单</h2>
+      <p class="lead">这一版 orchestrator 的工程取舍可以浓缩成四条——每条都直接映射到 Harness 的 L3a / L3b / L4 / L5b 层。最后给出当前仍未完成的部分，方便后续迭代。</p>
+    </div>
+
+    <div class="grid g2" style="margin-bottom: 18px;">
+      <div class="card" style="border-left:4px solid var(--accent);">
+        <span class="tag" style="color:var(--accent);">① L3a · 单次规划</span>
+        <h3>一次模型调用决定全套动作</h3>
+        <p>砍掉「先选 skill 再二次规划」的双跳，路由 + 规划 + 参数合并到同一个结构化输出里。延迟降一半，模型也能在更完整的上下文里做联合决策。</p>
+      </div>
+      <div class="card" style="border-left:4px solid var(--accent-3);">
+        <span class="tag" style="color:var(--accent-3);">② L4 · 压缩 evidence snapshot</span>
+        <h3>评估只看摘要，不回灌全量日志</h3>
+        <p>assessment / follow-up 的输入只是 <code>command_count</code>、<code>skills_touched</code> 与关键证据片段；完整 execution log 留在本地。上下文不爆炸，前缀也更稳定。</p>
+      </div>
+      <div class="card" style="border-left:4px solid var(--accent-2);">
+        <span class="tag" style="color:var(--accent-2);">③ L3b · 同源批处理</span>
+        <h3>同一资源的多关键词合并扫描</h3>
+        <p>对同一份 PDF / Excel 的多次搜索合并成 <code>batched_commands</code>，去重 query 后单次扫描。命中数据减少冗余 IO，成本与延迟同步下降。</p>
+      </div>
+      <div class="card" style="border-left:4px solid var(--good);">
+        <span class="tag" style="color:var(--good);">④ L3b · 有限并行</span>
+        <h3>无依赖动作并发执行</h3>
+        <p>路径 / 资源不冲突的只读动作并发跑，互斥写动作仍串行；保留预算护栏 <code>HEURISTIC_STOP_MIN_COMMANDS=6</code>，防止 heuristic 模式无限延伸。</p>
+      </div>
+    </div>
+
+    <div class="checklist" style="border-left-color: var(--warn);">
+      <h3 style="color: var(--warn);">仍在打磨的部分 · WIP</h3>
+      <ul>
+        <li>失败模式归因：自动从 trace 中提炼为 follow-up 规则</li>
+        <li>跨会话记忆：把已确认的器件/阈值结论沉淀到项目级 MEMORY.md</li>
+        <li>L5b 在线验收：用专用 evaluator 校验「冲击电流推断」的合理性</li>
+        <li>L6 失败恢复：单条动作失败的 checkpoint 与补救路径</li>
+        <li>三模式 A/B：把回答风格的差异转成可量化的工程指标</li>
+        <li>多 Agent 协作：拆出独立的 Critic Agent 做 plan 复审</li>
+      </ul>
+    </div>
+
+    <blockquote style="margin-top: 18px;">
+      <strong>一句话总结：</strong>同样的 Azure OpenAI 模型，落到 PCB 设计这种「证据稀疏 + 容错率低」的场景，能否拿到可信结论，几乎完全取决于 Harness 把<strong>采证、压缩、并行、多模式回答</strong>这四件事做成了什么样子。
+    </blockquote>
+
+    <div class="end-mark">END · © 2026 LEI XU</div>
+  </div>
+</section>
+
+
+<button class="to-top" aria-label="返回顶部" title="返回顶部">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 14l6-6 6 6"/></svg>
+</button>
+
+<script>
+  // Active dot tracking via IntersectionObserver
+  const dots = document.querySelectorAll('.dotnav a');
+  const slides = document.querySelectorAll('.slide');
+  const map = {};
+  dots.forEach(d => map[d.getAttribute('href').slice(1)] = d);
+
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting && e.intersectionRatio > 0.5) {
+        dots.forEach(d => d.classList.remove('active'));
+        const dot = map[e.target.id];
+        if (dot) dot.classList.add('active');
+      }
+    });
+  }, { threshold: [0.5] });
+  slides.forEach(s => io.observe(s));
+
+  // Keyboard arrow nav
+  document.addEventListener('keydown', (e) => {
+    const active = document.querySelector('.dotnav a.active');
+    if (!active) return;
+    const idx = Array.from(dots).indexOf(active);
+    if ((e.key === 'ArrowDown' || e.key === 'PageDown') && idx < dots.length - 1) {
+      e.preventDefault();
+      dots[idx + 1].click();
+    } else if ((e.key === 'ArrowUp' || e.key === 'PageUp') && idx > 0) {
+      e.preventDefault();
+      dots[idx - 1].click();
+    }
+  });
+
+  // Back-to-top: visible globally except on the first (cover) slide
+  const toTop = document.querySelector('.to-top');
+  const firstSlide = document.querySelector('.slide');
+  if (toTop && firstSlide) {
+    toTop.classList.add('show');
+    const coverIO = new IntersectionObserver((entries) => {
+      entries.forEach(en => {
+        if (en.isIntersecting && en.intersectionRatio > 0.6) toTop.classList.remove('show');
+        else toTop.classList.add('show');
+      });
+    }, { threshold: [0, 0.6, 1] });
+    coverIO.observe(firstSlide);
+    toTop.addEventListener('click', () => {
+      firstSlide.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+
+  // Fullscreen presentation mode (hide browser chrome)
+  const viewBtn = document.getElementById('viewToggle');
+  const viewLabel = document.getElementById('viewToggleLabel');
+  function isFullscreen() {
+    return document.fullscreenElement || document.webkitFullscreenElement;
+  }
+  function updateLabel() {
+    if (viewLabel) viewLabel.textContent = isFullscreen() ? '退出' : '演示';
+  }
+  if (viewBtn) {
+    viewBtn.addEventListener('click', () => {
+      if (!isFullscreen()) {
+        const el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    });
+    document.addEventListener('fullscreenchange', updateLabel);
+    document.addEventListener('webkitfullscreenchange', updateLabel);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'f' || e.key === 'F') {
+        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+          e.preventDefault(); viewBtn.click();
+        }
+      }
+    });
+  }
+</script>
+</body>
+</html>
